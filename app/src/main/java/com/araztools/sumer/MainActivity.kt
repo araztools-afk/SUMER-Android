@@ -1,13 +1,10 @@
 package com.araztools.sumer
 
-import android.Manifest
 import android.app.Activity
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothSocket
-import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
 import android.view.ViewGroup
@@ -39,7 +36,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         buildScreen()
-        if (hasBluetoothPermission()) loadBondedDevices() else requestBluetoothPermission()
+        loadBondedDevices()
     }
 
     private fun buildScreen() {
@@ -67,20 +64,16 @@ class MainActivity : Activity() {
 
         status = sectionText("وضعیت: آماده")
         root.addView(status)
-
         deviceSpinner = Spinner(this)
         root.addView(deviceSpinner, matchWidth())
-        val refresh = Button(this).apply {
+        root.addView(Button(this).apply {
             text = "به‌روزرسانی دستگاه‌های جفت‌شده"
-            setOnClickListener { if (hasBluetoothPermission()) loadBondedDevices() else requestBluetoothPermission() }
-        }
-        root.addView(refresh, matchWidth())
-
-        val connect = Button(this).apply {
+            setOnClickListener { loadBondedDevices() }
+        }, matchWidth())
+        root.addView(Button(this).apply {
             text = "اتصال به دستگاه انتخاب‌شده"
             setOnClickListener { connectSelectedDevice() }
-        }
-        root.addView(connect, matchWidth())
+        }, matchWidth())
         root.addView(Button(this).apply {
             text = "قطع اتصال"
             setOnClickListener { disconnect() }
@@ -93,12 +86,8 @@ class MainActivity : Activity() {
 
         root.addView(sectionText("تنظیم شبکه اسکن"))
         val dimensions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        rowsInput = EditText(this).apply {
-            setText(rows.toString()); hint = "ردیف"; inputType = 2
-        }
-        colsInput = EditText(this).apply {
-            setText(columns.toString()); hint = "ستون"; inputType = 2
-        }
+        rowsInput = EditText(this).apply { setText(rows.toString()); hint = "ردیف"; inputType = 2 }
+        colsInput = EditText(this).apply { setText(columns.toString()); hint = "ستون"; inputType = 2 }
         dimensions.addView(rowsInput, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         dimensions.addView(colsInput, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         root.addView(dimensions)
@@ -111,7 +100,6 @@ class MainActivity : Activity() {
         matrixView = sectionText("هنوز اسکن ماتریسی دریافت نشده است.")
         matrixView.textSize = 13f
         root.addView(matrixView)
-
         root.addView(sectionText("گزارش دریافت"))
         logView = sectionText("داده‌های ورودی در این قسمت نمایش داده می‌شوند.")
         logView.textSize = 12f
@@ -129,30 +117,12 @@ class MainActivity : Activity() {
         ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
     )
 
-    private fun hasBluetoothPermission(): Boolean =
-        Build.VERSION.SDK_INT < 31 ||
-            checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
-
-    private fun requestBluetoothPermission() {
-        if (Build.VERSION.SDK_INT >= 31) {
-            requestPermissions(arrayOf(Manifest.permission.BLUETOOTH_CONNECT), 41)
-        }
-    }
-
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == 41 && grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            loadBondedDevices()
-        } else {
-            status.text = "مجوز بلوتوث داده نشد."
-        }
-    }
-
     private fun bluetoothAdapter(): BluetoothAdapter? {
         val manager = getSystemService(BLUETOOTH_SERVICE) as BluetoothManager
         return manager.adapter
     }
 
+    @Suppress("DEPRECATION")
     private fun loadBondedDevices() {
         try {
             val adapter = bluetoothAdapter()
@@ -169,15 +139,12 @@ class MainActivity : Activity() {
             deviceSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, labels)
             status.text = "دستگاه‌های جفت‌شده: ${bondedDevices.size}"
         } catch (e: SecurityException) {
-            status.text = "مجوز دسترسی به دستگاه‌های بلوتوث لازم است."
+            status.text = "دسترسی بلوتوث توسط سیستم محدود شده است."
         }
     }
 
+    @Suppress("DEPRECATION")
     private fun connectSelectedDevice() {
-        if (!hasBluetoothPermission()) {
-            requestBluetoothPermission()
-            return
-        }
         if (bondedDevices.isEmpty() || deviceSpinner.selectedItemPosition !in bondedDevices.indices) {
             status.text = "ابتدا HC-05 را از تنظیمات گوشی Pair کنید."
             return
