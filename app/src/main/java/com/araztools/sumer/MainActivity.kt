@@ -32,6 +32,7 @@ import kotlin.concurrent.thread
 
 class MainActivity : Activity() {
     private val sppUuid: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
+    @Volatile
     private var socket: BluetoothSocket? = null
     private var readerThread: Thread? = null
     @Volatile
@@ -240,6 +241,7 @@ class MainActivity : Activity() {
                 runOnUiThread { status.text = "اتصال ناموفق: ${e.message ?: "خطای بلوتوث"}" }
                 try { socket?.close() } catch (_: Exception) {}
                 socket = null
+                connectedDevice = null
             }
         }
     }
