@@ -61,7 +61,7 @@ class ScanStorageWorker(
                 val batch = pending.toList()
                 var lastError: Exception? = null
 
-                repeat(3) { attempt ->
+                for (attempt in 0 until MAX_BATCH_RETRIES) {
                     try {
                         repository.appendBatch(
                             scanId = scanId,
@@ -70,15 +70,18 @@ class ScanStorageWorker(
                         )
                         nextSampleIndex += batch.size
                         pending.clear()
-                        lastError = null
-                        return@repeat
+                        return
                     } catch (error: Exception) {
                         lastError = error
-                        if (attempt < 2) delay(200L * (attempt + 1))
+                        if (attempt < MAX_BATCH_RETRIES - 1) {
+                            delay(200L * (attempt + 1))
+                        }
                     }
                 }
 
-                lastError?.let { throw it }
+                throw lastError ?: IllegalStateException(
+                    "ذخیره دسته نمونه‌ها ناموفق بود."
+                )
             }
 
             for (command in commands) {
@@ -86,13 +89,17 @@ class ScanStorageWorker(
                 try {
                     when (command) {
                         is Command.Begin -> {
-                            if (activeScanId != null) {
+                            val previousId = activeScanId
+                            if (previousId != null) {
                                 flushPending()
                                 repository.finishScan(
-                                    activeScanId!!,
+                                    previousId,
                                     completed = false,
                                     finishedAt = null
                                 )
+                                activeScanId = null
+                                nextSampleIndex = 0
+                                pending.clear()
                             }
 
                             activeScanId = repository.startScan(
@@ -115,10 +122,11 @@ class ScanStorageWorker(
                         }
 
                         is Command.Finish -> {
-                            if (activeScanId != null) {
+                            val currentId = activeScanId
+                            if (currentId != null) {
                                 flushPending()
                                 repository.finishScan(
-                                    activeScanId!!,
+                                    currentId,
                                     completed = command.completed,
                                     finishedAt = if (command.completed) {
                                         System.currentTimeMillis()
@@ -135,8 +143,7 @@ class ScanStorageWorker(
                     }
                 } catch (error: Exception) {
                     report(error)
-                    // A shutdown is retried rather than silently discarding the
-                    // final buffered samples after a temporary database error.
+                    // Retry shutdown if the final batch could not be committed.
                     if (command is Command.Finish && command.shutdown) {
                         delay(1000)
                         commands.trySend(command)
@@ -193,5 +200,6 @@ class ScanStorageWorker(
 
     private companion object {
         const val BATCH_SIZE = 25
+        const val MAX_BATCH_RETRIES = 3
     }
 }
