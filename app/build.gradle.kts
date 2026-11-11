@@ -4,14 +4,17 @@ plugins {
 
 android {
     namespace = "com.araztools.sumer"
+
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.araztools.sumer"
+        // Separate diagnostic package prevents conflicts with any older SUMER APK
+        // that may have been installed with a different signing key.
+        applicationId = "com.araztools.sumer.installtest"
         minSdk = 23
         targetSdk = 28
-        versionCode = 5
-        versionName = "0.4.1-diagnostic"
+        versionCode = 1
+        versionName = "1.0-install-test"
     }
 
     compileOptions {
