@@ -2,6 +2,7 @@ package com.araztools.sumer
 
 import android.Manifest
 import android.app.Activity
+import android.app.AlertDialog
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
@@ -9,6 +10,18 @@ import android.bluetooth.BluetoothSocket
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import com.araztools.sumer.data.local.ScanEntity
+import com.araztools.sumer.data.local.SumerDatabase
+import com.araztools.sumer.data.repository.ScanRepository
+import com.araztools.sumer.data.repository.ScanStorageWorker
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.*
@@ -19,13 +32,29 @@ import kotlin.concurrent.thread
 
 class MainActivity : Activity() {
     private val sppUuid: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
+    @Volatile
     private var socket: BluetoothSocket? = null
+    @Volatile
     private var readerThread: Thread? = null
+    @Volatile
     private var scanning = false
     private val matrixValues = mutableListOf<Int>()
+    private val matrixLock = Any()
     private val recentValues = ArrayDeque<Int>()
+    @Volatile
     private var rows = 10
-    private var columns = 10
+    @Volatile
+    private var columns = 20
+
+    // The current prototype is marker-driven by the hardware.
+    // Manual start controls will be added in a later UI step.
+    private val matrixMode = "AUTOMATIC"
+
+    private lateinit var scanRepository: ScanRepository
+    private lateinit var storageWorker: ScanStorageWorker
+    private lateinit var historyScope: CoroutineScope
+    @Volatile
+    private var connectedDevice: BluetoothDevice? = null
 
     private lateinit var status: TextView
     private lateinit var deviceSpinner: Spinner
@@ -39,6 +68,19 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         buildScreen()
+
+        scanRepository = ScanRepository(
+            SumerDatabase.getInstance(applicationContext).scanDao()
+        )
+        historyScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        storageWorker = ScanStorageWorker(applicationContext) { message ->
+            runOnUiThread {
+                if (::logView.isInitialized) {
+                    appendLog("خطای ذخیره‌سازی: $message")
+                }
+            }
+        }
+
         if (hasBluetoothPermission()) loadBondedDevices() else requestBluetoothPermission()
     }
 
@@ -111,6 +153,10 @@ class MainActivity : Activity() {
         matrixView = sectionText("هنوز اسکن ماتریسی دریافت نشده است.")
         matrixView.textSize = 13f
         root.addView(matrixView)
+        root.addView(Button(this).apply {
+            text = "تاریخچه اسکن‌های ذخیره‌شده"
+            setOnClickListener { showScanHistory() }
+        }, matchWidth())
 
         root.addView(sectionText("گزارش دریافت"))
         logView = sectionText("داده‌های ورودی در این قسمت نمایش داده می‌شوند.")
@@ -183,10 +229,12 @@ class MainActivity : Activity() {
             return
         }
         val device = bondedDevices[deviceSpinner.selectedItemPosition]
+        connectedDevice = device
         status.text = "در حال اتصال به ${device.name ?: device.address} ..."
         thread {
             try {
-                bluetoothAdapter()?.cancelDiscovery()
+                // Discovery is not started by this screen; avoiding cancelDiscovery
+                // also avoids requesting BLUETOOTH_SCAN on Android 12+.
                 val newSocket = device.createRfcommSocketToServiceRecord(sppUuid)
                 newSocket.connect()
                 socket = newSocket
@@ -196,82 +244,219 @@ class MainActivity : Activity() {
                 runOnUiThread { status.text = "اتصال ناموفق: ${e.message ?: "خطای بلوتوث"}" }
                 try { socket?.close() } catch (_: Exception) {}
                 socket = null
+                connectedDevice = null
             }
         }
     }
 
     private fun listen(activeSocket: BluetoothSocket) {
         readerThread = thread {
+            var disconnectMessage = "ارتباط بلوتوث قطع شد."
             try {
-                val reader = BufferedReader(InputStreamReader(activeSocket.inputStream, Charsets.UTF_8))
+                val reader = BufferedReader(
+                    InputStreamReader(activeSocket.inputStream, Charsets.UTF_8)
+                )
                 while (!Thread.currentThread().isInterrupted && activeSocket.isConnected) {
                     val line = reader.readLine() ?: break
                     processLine(line.trim())
                 }
-            } catch (e: Exception) {
-                runOnUiThread { status.text = "دریافت متوقف شد: ${e.message ?: "قطع ارتباط"}" }
+            } catch (error: Exception) {
+                disconnectMessage =
+                    "دریافت متوقف شد: ${error.message ?: "قطع ارتباط"}"
+            } finally {
+                // If this socket is still the active one, the remote device
+                // disconnected without the user pressing the disconnect button.
+                if (socket === activeSocket) {
+                    if (scanning) {
+                        scanning = false
+                        storageWorker.finishScan(completed = false)
+                    }
+                    try {
+                        activeSocket.close()
+                    } catch (_: Exception) {
+                    }
+                    socket = null
+                    connectedDevice = null
+                    runOnUiThread { status.text = disconnectMessage }
+                }
             }
         }
     }
 
     private fun processLine(line: String) {
         if (line.isEmpty()) return
-        if (line.equals("a", ignoreCase = true)) {
-            scanning = !scanning
-            if (scanning) {
-                matrixValues.clear()
+
+        // Only a complete standalone lowercase "a" line toggles matrix scanning.
+        if (line == "a") {
+            if (!scanning) {
+                scanning = true
+                synchronized(matrixLock) {
+                    matrixValues.clear()
+                }
+
+                val device = connectedDevice
+                storageWorker.beginScan(
+                    deviceName = try { device?.name } catch (_: SecurityException) { null },
+                    deviceMac = try { device?.address } catch (_: SecurityException) { null },
+                    mode = matrixMode,
+                    rows = rows,
+                    columns = columns,
+                    startedAt = System.currentTimeMillis()
+                )
                 runOnUiThread { status.text = "اسکن ماتریسی آغاز شد." }
+                appendLog("a  → شروع اسکن")
             } else {
+                scanning = false
+                storageWorker.finishScan(completed = true)
                 renderMatrix()
-                runOnUiThread { status.text = "اسکن پایان یافت؛ تعداد نقاط: ${matrixValues.size}" }
+                val count = synchronized(matrixLock) { matrixValues.size }
+                runOnUiThread {
+                    status.text = "اسکن پایان یافت؛ تعداد نقاط: $count"
+                }
+                appendLog("a  → پایان اسکن")
             }
-            appendLog(if (scanning) "a  → شروع اسکن" else "a  → پایان اسکن")
             return
         }
+
         val value = line.toIntOrNull()
         if (value == null || value !in 0..5000) {
-            appendLog("داده نامعتبر: $line")
+            appendLog("داده نامعتبر یا ناشناخته: $line")
             return
         }
+
         synchronized(recentValues) {
             recentValues.addLast(value)
             while (recentValues.size > 5) recentValues.removeFirst()
         }
         runOnUiThread { rawValue.text = value.toString() }
+
         if (scanning) {
-            synchronized(matrixValues) {
-                if (matrixValues.size < rows * columns) matrixValues.add(value)
+            val accepted = synchronized(matrixLock) {
+                if (matrixValues.size >= MAX_SAMPLES_PER_SCAN) {
+                    false
+                } else {
+                    matrixValues.add(value)
+                    true
+                }
+            }
+            if (accepted) {
+                storageWorker.addSample(value)
+            } else {
+                appendLog("حداکثر تعداد نمونه این اسکن پر شد؛ نمونه جدید رد شد.")
             }
         }
+
         appendLog(value.toString())
     }
 
     private fun renderMatrix() {
-        val snapshot = synchronized(matrixValues) { matrixValues.toList() }
+        val snapshot = synchronized(matrixLock) { matrixValues.toList() }
+        val visibleValues = snapshot.take(MAX_VISIBLE_MATRIX_CELLS)
+        val displayRows = maxOf(rows, (visibleValues.size + columns - 1) / columns)
+
         val output = buildString {
-            append("نقاط ثبت‌شده: ${snapshot.size}\n")
-            for (r in 0 until rows) {
-                val line = (0 until columns).joinToString("  ") { c ->
-                    snapshot.getOrNull(r * columns + c)?.toString() ?: "·"
+            append("تعداد کل نمونه‌های ذخیره‌شده: ${snapshot.size}\n")
+            for (r in 0 until displayRows) {
+                val line = (0 until columns).joinToString("  ") { col ->
+                    visibleValues.getOrNull(r * columns + col)?.toString() ?: "·"
                 }
                 append(line)
                 append('\n')
+            }
+            if (snapshot.size > visibleValues.size) {
+                append("نمایش به ${visibleValues.size} خانه محدود شده است؛ همه نمونه‌ها در تاریخچه ذخیره می‌شوند.")
             }
         }
         runOnUiThread { matrixView.text = output }
     }
 
     private fun applyDimensions() {
+        if (scanning) {
+            Toast.makeText(this, "ابعاد شبکه را پس از پایان اسکن تغییر دهید.", Toast.LENGTH_LONG).show()
+            return
+        }
+
         val r = rowsInput.text.toString().toIntOrNull()
-        val c = colsInput.text.toString().toIntOrNull()
-        if (r == null || c == null || r !in 1..100 || c !in 1..100 || r * c > 2500) {
-            Toast.makeText(this, "ابعاد معتبر وارد کنید؛ حداکثر ۲۵۰۰ نقطه.", Toast.LENGTH_LONG).show()
+        val col = colsInput.text.toString().toIntOrNull()
+        if (r == null || col == null || r !in 1..100 || col !in 1..100 || r * col > 2500) {
+            Toast.makeText(this, "ابعاد معتبر وارد کنید؛ حداکثر ۲۵۰۰ خانه نمایشی.", Toast.LENGTH_LONG).show()
             return
         }
         rows = r
-        columns = c
-        matrixValues.clear()
+        columns = col
         matrixView.text = "شبکه جدید: ${rows} × ${columns}"
+    }
+
+    private fun showScanHistory() {
+        historyScope.launch {
+            try {
+                val scans = scanRepository.getHistoryOnce()
+                runOnUiThread {
+                    if (scans.isEmpty()) {
+                        Toast.makeText(this@MainActivity, "هنوز اسکن ذخیره‌شده‌ای وجود ندارد.", Toast.LENGTH_SHORT).show()
+                        return@runOnUiThread
+                    }
+
+                    val formatter = SimpleDateFormat("yyyy/MM/dd HH:mm:ss", Locale.getDefault())
+                    val labels = scans.map { scan ->
+                        val date = formatter.format(Date(scan.startedAt))
+                        val state = if (scan.isComplete) "کامل" else "ناقص"
+                        "$date | ${scan.mode} | ${scan.sampleCount} نمونه | $state"
+                    }
+
+                    AlertDialog.Builder(this@MainActivity)
+                        .setTitle("تاریخچه اسکن‌ها")
+                        .setItems(labels.toTypedArray()) { _, index ->
+                            showScanDetails(scans[index])
+                        }
+                        .setNegativeButton("بستن", null)
+                        .show()
+                }
+            } catch (error: Exception) {
+                runOnUiThread {
+                    Toast.makeText(this@MainActivity, "خواندن تاریخچه ناموفق بود: ${error.message}", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    private fun showScanDetails(scan: ScanEntity) {
+        historyScope.launch {
+            try {
+                val samples = scanRepository.getSamples(scan.id)
+                val preview = samples.take(MAX_HISTORY_PREVIEW)
+                    .joinToString(", ") { it.value.toString() }
+
+                val details = buildString {
+                    append("شناسه: ${scan.id}\n")
+                    append("حالت: ${scan.mode}\n")
+                    append("دستگاه: ${scan.deviceName ?: "نامشخص"}\n")
+                    append("MAC: ${scan.deviceMac ?: "نامشخص"}\n")
+                    append("ابعاد هنگام شروع: ${scan.rows} × ${scan.columns}\n")
+                    append("تعداد نمونه: ${scan.sampleCount}\n")
+                    append("کمینه: ${scan.minValue ?: "—"}\n")
+                    append("بیشینه: ${scan.maxValue ?: "—"}\n")
+                    append("وضعیت: ${if (scan.isComplete) "کامل" else "ناقص"}\n")
+                    append("نمونه‌های نخست: ")
+                    append(if (preview.isEmpty()) "—" else preview)
+                    if (samples.size > MAX_HISTORY_PREVIEW) {
+                        append("\n... فقط ${MAX_HISTORY_PREVIEW} نمونه نخست نمایش داده شد.")
+                    }
+                }
+
+                runOnUiThread {
+                    AlertDialog.Builder(this@MainActivity)
+                        .setTitle("جزئیات اسکن #${scan.id}")
+                        .setMessage(details)
+                        .setPositiveButton("بستن", null)
+                        .show()
+                }
+            } catch (error: Exception) {
+                runOnUiThread {
+                    Toast.makeText(this@MainActivity, "خواندن جزئیات اسکن ناموفق بود: ${error.message}", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
     }
 
     private fun appendLog(message: String) {
@@ -282,15 +467,28 @@ class MainActivity : Activity() {
     }
 
     private fun disconnect() {
+        if (scanning) {
+            scanning = false
+            storageWorker.finishScan(completed = false)
+        }
         try { readerThread?.interrupt() } catch (_: Exception) {}
         try { socket?.close() } catch (_: Exception) {}
         socket = null
-        scanning = false
-        status.text = "اتصال قطع شد."
+        connectedDevice = null
+        status.text = "اتصال قطع شد؛ اسکن فعال به‌صورت ناقص ذخیره می‌شود."
     }
 
     override fun onDestroy() {
         disconnect()
+        if (::storageWorker.isInitialized) storageWorker.shutdown()
+        if (::historyScope.isInitialized) historyScope.cancel()
         super.onDestroy()
+    }
+
+    private companion object {
+        const val REQUEST_BLUETOOTH_PERMISSION = 41
+        const val MAX_SAMPLES_PER_SCAN = 1_000_000
+        const val MAX_VISIBLE_MATRIX_CELLS = 2500
+        const val MAX_HISTORY_PREVIEW = 100
     }
 }
