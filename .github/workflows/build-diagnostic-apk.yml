@@ -42,7 +42,7 @@ jobs:
           APK="app/build/outputs/apk/debug/app-debug.apk"
           test -s "$APK"
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | tee apk-badging.txt
-          grep -q "package: name='com.araztools.sumer'" apk-badging.txt
+          grep -q "package: name='com.araztools.sumer.installtest'" apk-badging.txt
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
           sha256sum "$APK" | tee apk-sha256.txt
           cp "$APK" SUMER-Install-Diagnostic.apk
