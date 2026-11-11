@@ -1,8 +1,8 @@
-name: Build SUMER diagnostic APK
+name: Build S1 Android APK
 
 on:
   push:
-    branches: [ main ]
+    branches: [ s1 ]
   workflow_dispatch:
 
 permissions:
@@ -34,25 +34,25 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Build debug APK
+      - name: Build S1 debug APK
         run: gradle --no-daemon clean :app:assembleDebug
 
-      - name: Verify APK package metadata and signature
+      - name: Verify S1 APK package metadata and signature
         run: |
           APK="app/build/outputs/apk/debug/app-debug.apk"
           test -s "$APK"
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | tee apk-badging.txt
-          grep -q "package: name='com.araztools.sumer.installtest'" apk-badging.txt
+          grep -q "package: name='com.araztools.s1'" apk-badging.txt
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
           sha256sum "$APK" | tee apk-sha256.txt
-          cp "$APK" SUMER-Install-Diagnostic.apk
+          cp "$APK" S1.apk
 
-      - name: Upload verified APK
+      - name: Upload verified S1 APK
         uses: actions/upload-artifact@v4
         with:
-          name: SUMER-Install-Diagnostic
+          name: S1-Android-APK
           path: |
-            SUMER-Install-Diagnostic.apk
+            S1.apk
             apk-badging.txt
             apk-sha256.txt
           if-no-files-found: error
