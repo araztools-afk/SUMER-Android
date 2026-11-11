@@ -8,13 +8,11 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        // Separate diagnostic package prevents conflicts with any older SUMER APK
-        // that may have been installed with a different signing key.
-        applicationId = "com.araztools.sumer.installtest"
+        applicationId = "com.araztools.s1"
         minSdk = 23
         targetSdk = 28
         versionCode = 1
-        versionName = "1.0-install-test"
+        versionName = "1.0"
     }
 
     compileOptions {
