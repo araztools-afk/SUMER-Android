@@ -34,13 +34,16 @@ class MainActivity : Activity() {
     private val sppUuid: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
     @Volatile
     private var socket: BluetoothSocket? = null
+    @Volatile
     private var readerThread: Thread? = null
     @Volatile
     private var scanning = false
     private val matrixValues = mutableListOf<Int>()
     private val matrixLock = Any()
     private val recentValues = ArrayDeque<Int>()
+    @Volatile
     private var rows = 10
+    @Volatile
     private var columns = 20
 
     // The current prototype is marker-driven by the hardware.
@@ -248,14 +251,34 @@ class MainActivity : Activity() {
 
     private fun listen(activeSocket: BluetoothSocket) {
         readerThread = thread {
+            var disconnectMessage = "ارتباط بلوتوث قطع شد."
             try {
-                val reader = BufferedReader(InputStreamReader(activeSocket.inputStream, Charsets.UTF_8))
+                val reader = BufferedReader(
+                    InputStreamReader(activeSocket.inputStream, Charsets.UTF_8)
+                )
                 while (!Thread.currentThread().isInterrupted && activeSocket.isConnected) {
                     val line = reader.readLine() ?: break
                     processLine(line.trim())
                 }
-            } catch (e: Exception) {
-                runOnUiThread { status.text = "دریافت متوقف شد: ${e.message ?: "قطع ارتباط"}" }
+            } catch (error: Exception) {
+                disconnectMessage =
+                    "دریافت متوقف شد: ${error.message ?: "قطع ارتباط"}"
+            } finally {
+                // If this socket is still the active one, the remote device
+                // disconnected without the user pressing the disconnect button.
+                if (socket === activeSocket) {
+                    if (scanning) {
+                        scanning = false
+                        storageWorker.finishScan(completed = false)
+                    }
+                    try {
+                        activeSocket.close()
+                    } catch (_: Exception) {
+                    }
+                    socket = null
+                    connectedDevice = null
+                    runOnUiThread { status.text = disconnectMessage }
+                }
             }
         }
     }
