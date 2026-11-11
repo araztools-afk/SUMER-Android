@@ -10,9 +10,10 @@ android {
     defaultConfig {
         applicationId = "com.araztools.sumer"
         minSdk = 23
-        targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        // Target Android 14 explicitly for the first phone test.
+        targetSdk = 34
+        versionCode = 2
+        versionName = "0.2.0"
     }
 
     compileOptions {
