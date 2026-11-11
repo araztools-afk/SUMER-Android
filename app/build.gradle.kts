@@ -10,8 +10,8 @@ android {
         applicationId = "com.araztools.sumer"
         minSdk = 23
         targetSdk = 28
-        versionCode = 4
-        versionName = "0.4.0-diagnostic"
+        versionCode = 5
+        versionName = "0.4.1-diagnostic"
     }
 
     compileOptions {
