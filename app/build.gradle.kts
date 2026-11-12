@@ -8,13 +8,12 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        // Separate diagnostic package prevents conflicts with any older SUMER APK
-        // that may have been installed with a different signing key.
-        applicationId = "com.araztools.sumer.installtest"
+        // Unique package ID so this Live preview installs beside S1.
+        applicationId = "com.araztools.sumer.livepreview"
         minSdk = 23
         targetSdk = 28
-        versionCode = 1
-        versionName = "1.0-install-test"
+        versionCode = 2
+        versionName = "1.1-live-preview"
     }
 
     compileOptions {
