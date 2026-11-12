@@ -322,18 +322,18 @@ public class MainActivity extends Activity {
       if(!adapter.isEnabled()){toast("Turn on Bluetooth first");return;}
       stopDiscovery();
       discoveredDevices.clear();discoveredLabels.clear();
-      for(BluetoothDevice d:adapter.getBondedDevices())addDiscovered(d,"PAIRED");
+      for(BluetoothDevice d:adapter.getBondedDevices())addDiscovered(d,tr("PAIRED"));
       discoveredAdapter=new ArrayAdapter<>(this,android.R.layout.simple_list_item_1,discoveredLabels);
-      discoveryDialog=new AlertDialog.Builder(this).setTitle("Bluetooth devices — searching").setAdapter(discoveredAdapter,(dialog,which)->{
+      discoveryDialog=new AlertDialog.Builder(this).setTitle(tr("Bluetooth devices — searching")).setAdapter(discoveredAdapter,(dialog,which)->{
         BluetoothDevice selected=discoveredDevices.get(which);stopDiscovery();connect(selected);
-      }).setNegativeButton("Close",(dialog,which)->stopDiscovery()).create();
+      }).setNegativeButton(tr("Close"),(dialog,which)->stopDiscovery()).create();
       discoveryDialog.setOnDismissListener(d->{stopDiscovery();});
       discoveryDialog.show();
       discoveryReceiver=new BroadcastReceiver(){@Override public void onReceive(Context context,Intent intent){
         String action=intent.getAction();
         if(BluetoothDevice.ACTION_FOUND.equals(action)){
           BluetoothDevice d=intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
-          if(d!=null)addDiscovered(d,"FOUND");
+          if(d!=null)addDiscovered(d,tr("FOUND"));
         }else if(BluetoothAdapter.ACTION_DISCOVERY_FINISHED.equals(action)){
           if(discoveryDialog!=null&&discoveryDialog.isShowing())discoveryDialog.setTitle("Bluetooth devices — search complete");
           stopDiscoveryReceiverOnly();
@@ -498,7 +498,7 @@ public class MainActivity extends Activity {
   private void sendLine(String value){try{if(socket==null||!socket.isConnected()){toast("Device is not connected");return;}OutputStream out=socket.getOutputStream();out.write((value+System.lineSeparator()).getBytes("UTF-8"));out.flush();}catch(Exception e){toast(tr("Send failed: ")+e.getMessage());}}
 
   private void toast(String s){Toast.makeText(this,tr(s),Toast.LENGTH_SHORT).show();}
-  private String tr(String s){String[] a=TRANSLATIONS.get(s);if(a==null)return s;int i=language.equals("fa")?1:language.equals("ar")?2:language.equals("ru")?3:language.equals("tr")?4:language.equals("de")?5:0;return a[i];}
+  private String tr(String s){int i=language.equals("fa")?1:language.equals("ar")?2:language.equals("ru")?3:language.equals("tr")?4:language.equals("de")?5:0;String[] exact=TRANSLATIONS.get(s);if(exact!=null)return exact[i];String out=s;ArrayList<String> keys=new ArrayList<>(TRANSLATIONS.keySet());Collections.sort(keys,(x,y)->Integer.compare(y.length(),x.length()));for(String key:keys)if(key.length()>=4)out=out.replace(key,TRANSLATIONS.get(key)[i]);return out;}
   private static final HashMap<String,String[]> TRANSLATIONS=new HashMap<>();
   private static void addT(String en,String fa,String ar,String ru,String tr,String de){TRANSLATIONS.put(en,new String[]{en,fa,ar,ru,tr,de});}
   static {
@@ -559,6 +559,9 @@ public class MainActivity extends Activity {
     addT("A 3D surface needs at least a 2 × 2 measured area","برای سطح سه‌بعدی حداقل یک محدوده اندازه‌گیری‌شده ۲×۲ لازم است","يحتاج السطح ثلاثي الأبعاد إلى مساحة مقاسة لا تقل عن 2 × 2","Для 3D-поверхности нужна измеренная область не менее 2 × 2","3B yüzey için en az 2 × 2 ölçülmüş alan gerekir","Eine 3D-Oberfläche benötigt einen Messbereich von mindestens 2 × 2");
     addT("MediaStore unavailable","فضای ذخیره‌سازی رسانه در دسترس نیست","خدمة MediaStore غير متاحة","MediaStore недоступен","MediaStore kullanılamıyor","MediaStore nicht verfügbar");addT("Export failed: ","خروجی گرفتن ناموفق بود: ","فشل التصدير: ","Ошибка экспорта: ","Dışa aktarma başarısız: ","Export fehlgeschlagen: ");addT("Send failed: ","ارسال ناموفق بود: ","فشل الإرسال: ","Ошибка отправки: ","Gönderim başarısız: ","Senden fehlgeschlagen: ");
     addT("TX  ","ارسال  ","إرسال  ","ОТПР  ","GÖNDER  ","SENDEN  ");
+
+    addT("MANUAL LIVE DATA INPUT","ورود دستی داده زنده","إدخال بيانات مباشرة يدويًا","Ручной ввод данных в реальном времени","Manuel canlı veri girişi","Manuelle Live-Dateneingabe");addT("MANUAL PIN DATA INPUT","ورود دستی داده نقطه‌ای","إدخال بيانات النقطة يدويًا","Ручной ввод точечных данных","Manuel nokta verisi girişi","Manuelle Punktdateneingabe");
+    addT("DATA","داده","بيانات","Данные","Veri","Daten");addT("INPUT","ورودی","إدخال","Ввод","Giriş","Eingabe");addT("OUTPUT","خروجی","إخراج","Выход","Çıkış","Ausgabe");addT("PAIRED","جفت‌شده","مقترن","Сопряжено","Eşleştirildi","Gekoppelt");addT("FOUND","پیدا شد","تم العثور عليه","Найдено","Bulundu","Gefunden");
 
   }
   @Override public void onRequestPermissionsResult(int r,String[] p,int[] g){super.onRequestPermissionsResult(r,p,g);if(r==BT_REQ&&g.length>=2&&g[0]==PackageManager.PERMISSION_GRANTED&&g[1]==PackageManager.PERMISSION_GRANTED)searchDevices();}
