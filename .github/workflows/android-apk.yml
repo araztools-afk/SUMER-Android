@@ -5,10 +5,12 @@ on:
     branches: [main]
     paths-ignore:
       - 'build/sumer-2.4.apk.b64'
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -65,17 +67,3 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Publish temporary APK transfer file
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const content = fs.readFileSync('app/build/outputs/apk/debug/app-debug.apk').toString('base64');
-            await github.rest.repos.createOrUpdateFileContents({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              path: 'build/sumer-2.4.apk.b64',
-              message: 'Temporary SUMER 2.4 APK transfer artifact',
-              content,
-              branch: 'main'
-            });
