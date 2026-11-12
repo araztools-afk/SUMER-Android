@@ -12,7 +12,6 @@ import android.view.*;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.*;
 import android.media.*;
-import android.speech.tts.*;
 import android.provider.MediaStore;
 import android.content.ContentValues;
 import android.net.Uri;
@@ -21,7 +20,6 @@ import java.util.*;
 
 public class MainActivity extends Activity {
   private final Handler handler=new Handler(Looper.getMainLooper());
-  private TextToSpeech welcomeTts;
   private final ArrayList<Integer> activeScan=new ArrayList<>();
   private final ArrayList<Integer> lastScan=new ArrayList<>();
   private final ArrayList<String> logs=new ArrayList<>();
@@ -36,6 +34,7 @@ public class MainActivity extends Activity {
   private final int[] palette={0xff18bfff,0xff7c5cff,0xff20c997,0xffffb547,0xffef5b78};
   private int accent=0xff18bfff, last=-1,min=5001,max=-1,baud=9600,scanRows=4,scanCols=3;
   private boolean dark=true,feedbackSound=true,feedbackVibe=true,alertSound=true,alertVibe=false,autoRunning=false,matrixScanActive=false;
+  private String scanViewMode="CLASSIC";
   private String tab="HOME",alertMode="MANUAL";
   private TextView status,brand;
   private LinearLayout root,content,bottom;
@@ -54,8 +53,8 @@ public class MainActivity extends Activity {
   private int muted(){return dark?0xffb2bdc8:0xff62748b;}
   private int line(){return dark?0xff4b5864:0xffd2ddea;}
   private int dp(float n){return (int)(n*getResources().getDisplayMetrics().density+.5f);}
-  @Override public void onCreate(Bundle b){super.onCreate(b);android.content.SharedPreferences pref=getPreferences(0);dark=pref.getBoolean("dark",true);accent=pref.getInt("accent",0xff18bfff);feedbackSound=pref.getBoolean("feedbackSound",true);feedbackVibe=pref.getBoolean("feedbackVibe",true);alertSound=pref.getBoolean("alertSound",true);alertVibe=pref.getBoolean("alertVibe",false);baud=pref.getInt("baud",9600);scanRows=pref.getInt("scanRows",4);scanCols=pref.getInt("scanCols",3);autoReconnect=pref.getBoolean("autoReconnect",true);lastDeviceAddress=pref.getString("lastDeviceAddress","");getWindow().setNavigationBarColor(bg());getWindow().setStatusBarColor(bg());getWindow().getDecorView().setSystemUiVisibility(dark?0:View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);if(!pref.getBoolean("activated",false)){registration();}else{shell();if(autoReconnect&&!lastDeviceAddress.isEmpty())handler.postDelayed(()->{if(Build.VERSION.SDK_INT<31||checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT)==PackageManager.PERMISSION_GRANTED)connectAddress(lastDeviceAddress);},900);}}
-  private void persistSettings(){getPreferences(0).edit().putBoolean("dark",dark).putInt("accent",accent).putBoolean("feedbackSound",feedbackSound).putBoolean("feedbackVibe",feedbackVibe).putBoolean("alertSound",alertSound).putBoolean("alertVibe",alertVibe).putInt("baud",baud).putInt("scanRows",scanRows).putInt("scanCols",scanCols).putBoolean("autoReconnect",autoReconnect).apply();}
+  @Override public void onCreate(Bundle b){super.onCreate(b);android.content.SharedPreferences pref=getPreferences(0);dark=pref.getBoolean("dark",true);accent=pref.getInt("accent",0xff18bfff);feedbackSound=pref.getBoolean("feedbackSound",true);feedbackVibe=pref.getBoolean("feedbackVibe",true);alertSound=pref.getBoolean("alertSound",true);alertVibe=pref.getBoolean("alertVibe",false);baud=pref.getInt("baud",9600);scanRows=pref.getInt("scanRows",4);scanCols=pref.getInt("scanCols",3);scanViewMode=pref.getString("scanViewMode","CLASSIC");autoReconnect=pref.getBoolean("autoReconnect",true);lastDeviceAddress=pref.getString("lastDeviceAddress","");getWindow().setNavigationBarColor(bg());getWindow().setStatusBarColor(bg());getWindow().getDecorView().setSystemUiVisibility(dark?0:View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);if(!pref.getBoolean("activated",false)){registration();}else{shell();if(autoReconnect&&!lastDeviceAddress.isEmpty())handler.postDelayed(()->{if(Build.VERSION.SDK_INT<31||checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT)==PackageManager.PERMISSION_GRANTED)connectAddress(lastDeviceAddress);},900);}}
+  private void persistSettings(){getPreferences(0).edit().putBoolean("dark",dark).putInt("accent",accent).putBoolean("feedbackSound",feedbackSound).putBoolean("feedbackVibe",feedbackVibe).putBoolean("alertSound",alertSound).putBoolean("alertVibe",alertVibe).putInt("baud",baud).putInt("scanRows",scanRows).putInt("scanCols",scanCols).putString("scanViewMode",scanViewMode).putBoolean("autoReconnect",autoReconnect).apply();}
   private TextView txt(String s,int size,int color){TextView t=new TextView(this);t.setText(s);t.setTextSize(size);t.setTextColor(color);t.setGravity(Gravity.CENTER_VERTICAL);return t;}
   private GradientDrawable shape(int color,int stroke){GradientDrawable d=new GradientDrawable();d.setColor(color);d.setCornerRadius(dp(18));if(stroke!=0)d.setStroke(dp(1),stroke);return d;}
   private LinearLayout col(){LinearLayout l=new LinearLayout(this);l.setOrientation(1);return l;}
@@ -63,9 +62,8 @@ public class MainActivity extends Activity {
   private void pad(View v,int a){v.setPadding(dp(a),dp(a),dp(a),dp(a));}
   private void registration(){
     LinearLayout page=col();page.setGravity(Gravity.CENTER);page.setPadding(dp(28),dp(24),dp(28),dp(24));page.setBackgroundColor(bg());setContentView(page);
-    TextView logo=txt("SUMER",42,fg());logo.setGravity(Gravity.CENTER);logo.setTypeface(null,1);page.addView(logo);
+    TextView logo=txt("SUMER",46,fg());logo.setGravity(Gravity.CENTER);logo.setTypeface(null,1);logo.setLetterSpacing(.16f);logo.setBackground(shape(panel(),accent));logo.setPadding(dp(18),dp(20),dp(18),dp(20));LinearLayout.LayoutParams logoP=new LinearLayout.LayoutParams(-1,dp(112));logoP.topMargin=dp(20);logoP.bottomMargin=dp(12);page.addView(logo,logoP);
     TextView sub=txt("MAGNETOMETRIC SURVEY SYSTEM",12,accent);sub.setGravity(Gravity.CENTER);sub.setLetterSpacing(.13f);page.addView(sub);
-    ImageView shield=new ImageView(this);shield.setImageResource(R.drawable.ic_sumer);shield.setScaleType(ImageView.ScaleType.FIT_CENTER);LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-1,dp(125));sp.topMargin=dp(22);sp.bottomMargin=dp(8);page.addView(shield,sp);
     TextView title=txt("SERIAL REGISTRATION",19,fg());title.setGravity(Gravity.CENTER);title.setTypeface(null,1);page.addView(title);
     TextView hint=txt("Enter your personal activation code to unlock SUMER.",14,muted());hint.setGravity(Gravity.CENTER);hint.setPadding(0,dp(10),0,dp(22));page.addView(hint);
     EditText input=new EditText(this);input.setSingleLine(true);input.setTextColor(fg());input.setHintTextColor(muted());input.setHint("Enter 8-digit serial number");input.setBackground(shape(panel(),line()));pad(input,14);page.addView(input,new LinearLayout.LayoutParams(-1,dp(58)));
@@ -181,34 +179,73 @@ public class MainActivity extends Activity {
   }
   private ArrayList<Integer> scanDisplayValues(){return new ArrayList<>(matrixScanActive?activeScan:lastScan);}
   private void scanVisualization(){
+    Button mode=btn("VIEW MODE: "+("AI".equals(scanViewMode)?"AI VIEW":"CLASSIC VIEW")+"  •  TAP TO SWITCH");
+    mode.setOnClickListener(v->{tap();scanViewMode="AI".equals(scanViewMode)?"CLASSIC":"AI";persistSettings();show(tab);});
+    content.addView(mode);
     ArrayList<Integer> values=scanDisplayValues();
     int lo=5000,hi=0;for(int v:values){lo=Math.min(lo,v);hi=Math.max(hi,v);}
     if(values.isEmpty()){lo=0;hi=5000;}
     content.addView(heading("SCAN COLOUR MAP • "+values.size()+" / "+(scanRows*scanCols)+" VALUES"));
     content.addView(txt("MIN "+(values.isEmpty()?"—":lo)+"   MAX "+(values.isEmpty()?"—":hi)+"   GRID "+scanRows+" × "+scanCols+"   •   ZIGZAG FROM BOTTOM-LEFT",11,muted()));
     final ArrayList<Integer> data=values;final int low=lo,high=hi;
-    View map=new View(this){
-      protected void onMeasure(int ws,int hs){int width=MeasureSpec.getSize(ws);float cell=Math.min(width/(float)scanCols,dp(500)/(float)scanRows);setMeasuredDimension(width,(int)(cell*scanRows));}
-      protected void onDraw(Canvas canvas){
-        super.onDraw(canvas);float cell=Math.min(getWidth()/(float)scanCols,dp(500)/(float)scanRows);float offset=(getWidth()-cell*scanCols)/2;
-        Paint p=new Paint(3);p.setTextAlign(Paint.Align.CENTER);
-        for(int i=0;i<scanRows*scanCols;i++){
-          int[] rc=scanCell(i);float x=offset+rc[1]*cell,y=rc[0]*cell;
-          if(i<data.size()){p.setColor(scanColor(data.get(i),low,high));canvas.drawRect(x,y,x+cell,y+cell,p);}
-          p.setColor(0x887f929f);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(dp(1));canvas.drawRect(x+dp(.5f),y+dp(.5f),x+cell-dp(.5f),y+cell-dp(.5f),p);p.setStyle(Paint.Style.FILL);
-          if(i<data.size()){
-            if(matrixScanActive&&i==data.size()-1){p.setColor(0xffffffff);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(dp(2.5f));canvas.drawRect(x+dp(2),y+dp(2),x+cell-dp(2),y+cell-dp(2),p);p.setStyle(Paint.Style.FILL);}
-            p.setColor(0xffffffff);p.setTextSize(dp(9));canvas.drawText("#"+(i+1),x+cell/2,y+cell*.42f,p);
-            p.setTextSize(dp(13));canvas.drawText(""+data.get(i),x+cell/2,y+cell*.72f,p);
+    View map;
+    if("AI".equals(scanViewMode)){
+      final Bitmap heatmap=data.isEmpty()?null:createAiHeatmap(data,scanRows,scanCols,low,high);
+      map=new View(this){
+        protected void onMeasure(int ws,int hs){int width=MeasureSpec.getSize(ws);float cell=Math.min(width/(float)scanCols,dp(500)/(float)scanRows);setMeasuredDimension(width,(int)(cell*scanRows));}
+        protected void onDraw(Canvas canvas){
+          super.onDraw(canvas);float cell=Math.min(getWidth()/(float)scanCols,dp(500)/(float)scanRows);float offset=(getWidth()-cell*scanCols)/2;
+          if(heatmap==null){Paint wait=new Paint(3);wait.setColor(muted());wait.setTextSize(dp(13));wait.setTextAlign(Paint.Align.CENTER);canvas.drawText("AI VIEW • WAITING FOR DATA",getWidth()/2f,getHeight()/2f,wait);return;}
+          Paint smooth=new Paint(Paint.ANTI_ALIAS_FLAG|Paint.FILTER_BITMAP_FLAG);smooth.setFilterBitmap(true);
+          canvas.drawBitmap(heatmap,null,new RectF(offset,0,offset+cell*scanCols,cell*scanRows),smooth);
+        }
+      };
+      map.setBackgroundColor(panel());
+    }else{
+      map=new View(this){
+        protected void onMeasure(int ws,int hs){int width=MeasureSpec.getSize(ws);float cell=Math.min(width/(float)scanCols,dp(500)/(float)scanRows);setMeasuredDimension(width,(int)(cell*scanRows));}
+        protected void onDraw(Canvas canvas){
+          super.onDraw(canvas);float cell=Math.min(getWidth()/(float)scanCols,dp(500)/(float)scanRows);float offset=(getWidth()-cell*scanCols)/2;
+          Paint p=new Paint(3);p.setTextAlign(Paint.Align.CENTER);
+          for(int i=0;i<scanRows*scanCols;i++){
+            int[] rc=scanCell(i);float x=offset+rc[1]*cell,y=rc[0]*cell;
+            if(i<data.size()){p.setColor(scanColor(data.get(i),low,high));canvas.drawRect(x,y,x+cell,y+cell,p);}
+            p.setColor(0x887f929f);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(dp(1));canvas.drawRect(x+dp(.5f),y+dp(.5f),x+cell-dp(.5f),y+cell-dp(.5f),p);p.setStyle(Paint.Style.FILL);
+            if(i<data.size()){
+              if(matrixScanActive&&i==data.size()-1){p.setColor(0xffffffff);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(dp(2.5f));canvas.drawRect(x+dp(2),y+dp(2),x+cell-dp(2),y+cell-dp(2),p);p.setStyle(Paint.Style.FILL);}
+              p.setColor(0xffffffff);p.setTextSize(dp(9));canvas.drawText("#"+(i+1),x+cell/2,y+cell*.42f,p);
+              p.setTextSize(dp(13));canvas.drawText(""+data.get(i),x+cell/2,y+cell*.72f,p);
+            }
           }
         }
-      }
-    };
-    map.setBackgroundColor(panel());LinearLayout.LayoutParams mp=new LinearLayout.LayoutParams(-1,-2);mp.bottomMargin=dp(10);content.addView(map,mp);
+      };
+      map.setBackgroundColor(panel());
+    }
+    LinearLayout.LayoutParams mp=new LinearLayout.LayoutParams(-1,-2);mp.bottomMargin=dp(10);content.addView(map,mp);
+    if("AI".equals(scanViewMode)){
+      LinearLayout legend=col();TextView range=txt("LOW  "+(values.isEmpty()?"—":low)+"                                         HIGH  "+(values.isEmpty()?"—":high),10,muted());legend.addView(range);
+      View gradient=new View(this);GradientDrawable spectrum=new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,new int[]{0xff174bdb,0xff00b9d6,0xff16b86a,0xffffc629,0xffed3b32});spectrum.setCornerRadius(dp(5));gradient.setBackground(spectrum);legend.addView(gradient,new LinearLayout.LayoutParams(-1,dp(9)));LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.bottomMargin=dp(12);content.addView(legend,lp);
+    }
     if(values.isEmpty())return;
     content.addView(heading("SCAN GRAPH"));
     View chart=new View(this){protected void onDraw(Canvas canvas){super.onDraw(canvas);float w=getWidth(),h=getHeight();if(w<=0||h<=0)return;Paint p=new Paint(3);p.setColor(line());p.setStrokeWidth(dp(1));for(int i=1;i<4;i++)canvas.drawLine(0,h*i/4,w,h*i/4,p);p.setColor(accent);p.setStrokeWidth(dp(2));p.setStyle(Paint.Style.STROKE);Path path=new Path();for(int i=0;i<data.size();i++){float x=data.size()==1?w/2:(w-8)*i/(data.size()-1)+4;float y=h-4-(data.get(i)/5000f)*(h-8);if(i==0)path.moveTo(x,y);else path.lineTo(x,y);}canvas.drawPath(path,p);p.setStyle(Paint.Style.FILL);}};
     chart.setBackground(shape(panel(),line()));LinearLayout.LayoutParams chartP=new LinearLayout.LayoutParams(-1,dp(150));chartP.bottomMargin=dp(14);content.addView(chart,chartP);
+  }
+  private Bitmap createAiHeatmap(ArrayList<Integer> values,int rows,int cols,int low,int high){
+    Bitmap bitmap=Bitmap.createBitmap(cols,rows,Bitmap.Config.ARGB_8888);
+    int[] pixels=new int[rows*cols];
+    for(int r=0;r<rows;r++)for(int c=0;c<cols;c++){
+      double weighted=0,weightTotal=0;boolean exact=false;double interpolated=0;
+      for(int i=0;i<values.size();i++){
+        int[] point=scanCell(i);double dr=r-point[0],dc=c-point[1];double distance=dr*dr+dc*dc;
+        if(distance<0.0001){interpolated=values.get(i);exact=true;break;}
+        double weight=1.0/(distance+0.12);weighted+=weight*values.get(i);weightTotal+=weight;
+      }
+      if(!exact)interpolated=weightTotal>0?weighted/weightTotal:0;
+      pixels[r*cols+c]=scanColor((int)Math.round(interpolated),low,high);
+    }
+    bitmap.setPixels(pixels,0,cols,0,0,cols,rows);
+    return bitmap;
   }
   private void settings(){
     content.addView(heading("SETTINGS"));content.addView(label("APPEARANCE"));
@@ -344,77 +381,47 @@ public class MainActivity extends Activity {
   private void vibrate(int ms){try{android.os.Vibrator v=(android.os.Vibrator)getSystemService(VIBRATOR_SERVICE);if(v!=null){if(Build.VERSION.SDK_INT>=26)v.vibrate(VibrationEffect.createOneShot(ms,65));else v.vibrate(ms);}}catch(Exception ignored){}}
   private void tone(){try{android.media.ToneGenerator t=new android.media.ToneGenerator(android.media.AudioManager.STREAM_SYSTEM,35);t.startTone(android.media.ToneGenerator.TONE_PROP_BEEP,45);handler.postDelayed(t::release,100);}catch(Exception ignored){}}
   private void startWelcomeExperience(){
-    if(welcomeTts!=null){try{welcomeTts.stop();welcomeTts.shutdown();}catch(Exception ignored){}welcomeTts=null;}
-    welcomeTts=new TextToSpeech(this,statusCode->{
-      TextToSpeech tts=welcomeTts;
-      if(tts==null)return;
-      if(statusCode!=TextToSpeech.SUCCESS){tts.shutdown();welcomeTts=null;return;}
-      try{
-        int languageResult=tts.setLanguage(new Locale("fa","IR"));
-        if(languageResult==TextToSpeech.LANG_MISSING_DATA||languageResult==TextToSpeech.LANG_NOT_SUPPORTED){
-          languageResult=tts.setLanguage(new Locale("fa"));
-        }
-        if(languageResult==TextToSpeech.LANG_MISSING_DATA||languageResult==TextToSpeech.LANG_NOT_SUPPORTED){
-          toast("Persian voice is not installed. Install a Persian TTS voice in Android settings.");
-          tts.shutdown();welcomeTts=null;return;
-        }
-        Voice female=null;
-        if(Build.VERSION.SDK_INT>=21&&tts.getVoices()!=null){
-          for(Voice voice:tts.getVoices()){
-            if(!"fa".equalsIgnoreCase(voice.getLocale().getLanguage()))continue;
-            String details=(voice.getName()+" "+voice.getFeatures()).toLowerCase(Locale.US);
-            if(details.contains("female")||details.contains("woman")||details.contains("feminine")){
-              female=voice;break;
-            }
-          }
-        }
-        if(female!=null)tts.setVoice(female);
-        tts.setSpeechRate(0.91f);
-        tts.setPitch(1.04f);
-        tts.setOnUtteranceProgressListener(new UtteranceProgressListener(){
-          @Override public void onStart(String id){}
-          @Override public void onDone(String id){handler.post(()->{if(welcomeTts==tts){tts.shutdown();welcomeTts=null;}});}
-          @Override public void onError(String id){handler.post(()->{if(welcomeTts==tts){tts.shutdown();welcomeTts=null;}});}
-        });
-        playWelcomeMusicFiveSeconds();
-        HashMap<String,String> params=new HashMap<>();
-        params.put(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID,"sumer_welcome");
-        tts.speak("به دنیای اکتشافات خوش آمدید",TextToSpeech.QUEUE_FLUSH,params);
-      }catch(Exception e){
-        try{tts.shutdown();}catch(Exception ignored){}
-        if(welcomeTts==tts)welcomeTts=null;
-      }
-    });
+    playWelcomeGeologyMusic();
   }
-  private void playWelcomeMusicFiveSeconds(){
+  private void playWelcomeGeologyMusic(){
     new Thread(()->{
       AudioTrack track=null;
       try{
-        final int rate=22050,total=rate*5;
+        final int rate=22050,durationSeconds=7,total=rate*durationSeconds;
         short[] pcm=new short[total];
-        double[] chord={130.81,164.81,196.00,261.63};
-        double[] chimes={392.00,523.25,659.25,783.99};
+        double[] earthTones={55.0,73.42,82.41,110.0,146.83};
+        double[] crystalTones={220.0,293.66,369.99,440.0,587.33};
         for(int i=0;i<total;i++){
           double time=i/(double)rate;
-          double fade=Math.min(1.0,time*2.5)*Math.min(1.0,(5.0-time)*2.0);
-          double pad=0;
-          for(double hz:chord)pad+=Math.sin(2*Math.PI*hz*time)*0.16;
-          double bell=0;
-          for(int k=0;k<chimes.length;k++){
-            double start=0.45+k*1.05,dt=time-start;
-            if(dt>=0&&dt<0.75)bell+=Math.sin(2*Math.PI*chimes[k]*dt)*Math.exp(-dt*4.2)*0.24;
+          double fadeIn=Math.min(1.0,time/0.9);
+          double fadeOut=Math.min(1.0,(durationSeconds-time)/1.1);
+          double envelope=Math.max(0,fadeIn*fadeOut);
+          double earth=0;
+          for(int k=0;k<earthTones.length;k++){
+            double slow=0.92+0.08*Math.sin(2*Math.PI*(0.07+k*0.013)*time+k);
+            earth+=Math.sin(2*Math.PI*earthTones[k]*time)*slow*(k<3?0.15:0.055);
           }
-          double sample=(pad+bell)*fade*0.23;
+          double crystal=0;
+          for(int k=0;k<crystalTones.length;k++){
+            double start=0.65+k*1.18,dt=time-start;
+            if(dt>=0&&dt<1.05){
+              double bell=Math.exp(-dt*(3.0+k*0.18));
+              crystal+=(Math.sin(2*Math.PI*crystalTones[k]*dt)+0.22*Math.sin(2*Math.PI*crystalTones[k]*2.01*dt))*bell*0.12;
+            }
+          }
+          double subterranean=Math.sin(2*Math.PI*(24.0+2.0*Math.sin(time*0.8))*time)*0.055;
+          double sample=(earth+crystal+subterranean)*envelope*0.72;
           pcm[i]=(short)(Math.max(-1,Math.min(1,sample))*32767);
         }
-        track=new AudioTrack(AudioManager.STREAM_MUSIC,rate,AudioFormat.CHANNEL_OUT_MONO,AudioFormat.ENCODING_PCM_16BIT,total*2,AudioTrack.MODE_STATIC);
-        track.setVolume(0.55f);
-        track.write(pcm,0,pcm.length);
-        track.play();
-        Thread.sleep(5000);
+        AudioAttributes attributes=new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build();
+        AudioFormat format=new AudioFormat.Builder().setSampleRate(rate).setEncoding(AudioFormat.ENCODING_PCM_16BIT).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build();
+        track=new AudioTrack.Builder().setAudioAttributes(attributes).setAudioFormat(format).setTransferMode(AudioTrack.MODE_STATIC).setBufferSizeInBytes(total*2).build();
+        track.setVolume(1.0f);
+        int written=track.write(pcm,0,pcm.length);
+        if(written>0){track.play();Thread.sleep(durationSeconds*1000L);}
       }catch(Exception ignored){}
-      finally{if(track!=null)try{track.stop();track.release();}catch(Exception ignored){}}
-    },"SUMER-Welcome-Music").start();
+      finally{if(track!=null)try{if(track.getPlayState()==AudioTrack.PLAYSTATE_PLAYING)track.stop();track.release();}catch(Exception ignored){}}
+    },"SUMER-Geology-Welcome").start();
   }
 
   private boolean refreshPending=false;
