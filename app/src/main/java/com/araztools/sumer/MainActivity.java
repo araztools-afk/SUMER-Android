@@ -17,6 +17,8 @@ import java.util.*;
 public class MainActivity extends Activity {
   private final Handler handler=new Handler(Looper.getMainLooper());
   private final ArrayDeque<Integer> samples=new ArrayDeque<>();
+  private final ArrayList<Integer> activeScan=new ArrayList<>();
+  private final ArrayList<Integer> lastScan=new ArrayList<>();
   private final ArrayList<String> logs=new ArrayList<>();
   private final int[] palette={0xff18bfff,0xff7c5cff,0xff20c997,0xffffb547,0xffef5b78};
   private int accent=0xff18bfff, last=-1,min=5001,max=-1,baud=9600,scanRows=10,scanCols=10;
@@ -101,12 +103,14 @@ public class MainActivity extends Activity {
     content.addView(heading("LIVE MONITOR"));content.addView(txt("One live block • previous frame is replaced",12,muted()));stats();
     TextView block=txt(last<0?"WAITING FOR DATA":""+last,36,0xffffffff);block.setGravity(Gravity.CENTER);block.setTypeface(null,1);block.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,new int[]{0xff164bdb,0xff00b7d7,0xff00b76c,0xffffc629,0xffef3b32}));LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(-1,dp(190));bp.topMargin=dp(14);bp.bottomMargin=dp(12);content.addView(block,bp);
     
-    Button pause=btn("CLEAR LIVE MIN / MAX");pause.setOnClickListener(v->{tap();min=5001;max=-1;show("LIVE");});content.addView(pause);
+    testDataInput("MANUAL LIVE DATA INPUT");
+    Button pause=btn("CLEAR LIVE MIN / MAX");pause.setOnClickListener(v->{tap();min=5001;max=-1;last=-1;show("LIVE");});content.addView(pause);
   }
   private void manual(){
     content.addView(heading("MANUAL SURVEY"));
     content.addView(txt("Manual point-by-point acquisition and test input.",12,muted()));
     stats();scanControls();testDataInput("MANUAL TEST DATA INPUT");
+    scanVisualization();
     content.addView(heading("RECENT VALUES"));
     for(Integer n:samples){TextView t=txt("●     "+n,14,fg());t.setPadding(dp(12),dp(10),dp(12),dp(10));card(t);}
   }
@@ -131,13 +135,34 @@ public class MainActivity extends Activity {
     LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,dp(72));p.topMargin=dp(12);content.addView(state,p);
     Button b=btn(autoRunning?"STOP SESSION":"START SESSION");b.setOnClickListener(v->{tap();autoRunning=!autoRunning;show("AUTOMATIC");});content.addView(b);
     testDataInput("MANUAL TEST DATA RECEIVER");
+    scanVisualization();
     content.addView(txt("Test values enter the same display pipeline; no synthetic readings are generated automatically.",11,muted()));
   }
   private void pin(){
     content.addView(heading("PIN SURVEY"));content.addView(txt("Capture a point measurement and label its location.",12,muted()));stats();
     EditText name=new EditText(this);name.setSingleLine(true);name.setHint("Point name / ID");name.setTextColor(fg());name.setBackground(shape(panel(),line()));pad(name,12);content.addView(name);
     Button b=btn("SAVE CURRENT VALUE AS POINT");b.setOnClickListener(v->{tap();if(last<0){toast("No measurement received yet");return;}String s=name.getText().toString().trim();if(s.isEmpty())s="Point "+(logs.size()+1);logs.add(0,s+"  •  "+last);toast("Point saved in this session");});content.addView(b);
+    testDataInput("MANUAL PIN DATA INPUT");
+    scanVisualization();
     content.addView(heading("SESSION POINTS"));for(String s:logs){TextView t=txt("⌖   "+s,14,fg());t.setPadding(dp(12),dp(10),dp(12),dp(10));card(t);}
+  }
+  private int scanColor(int value,int lo,int hi){
+    float t=hi<=lo?0.5f:Math.max(0f,Math.min(1f,(value-lo)/(float)(hi-lo)));
+    int[] stops={0xff174bdb,0xff00b9d6,0xff16b86a,0xffffc629,0xffed3b32};
+    float p=t*(stops.length-1);int k=Math.min(stops.length-2,(int)p);float u=p-k;
+    int a=stops[k],b=stops[k+1];int r=(int)(((a>>16)&255)*(1-u)+((b>>16)&255)*u),g=(int)(((a>>8)&255)*(1-u)+((b>>8)&255)*u),bl=(int)((a&255)*(1-u)+(b&255)*u);
+    return 0xff000000|(r<<16)|(g<<8)|bl;
+  }
+  private void scanVisualization(){
+    if(lastScan.isEmpty()){TextView waiting=txt("SCAN MAP / CHART WILL APPEAR AFTER START 'a' → DATA → END 'a'",10,muted());waiting.setPadding(dp(4),dp(12),dp(4),dp(12));content.addView(waiting);return;}
+    int lo=5000,hi=0;for(int v:lastScan){lo=Math.min(lo,v);hi=Math.max(hi,v);}
+    content.addView(heading("SCAN COLOUR MAP  •  "+lastScan.size()+" VALUES"));
+    TextView range=txt("MIN "+lo+"     MAX "+hi+"     GRID "+scanRows+" × "+scanCols,11,muted());content.addView(range);
+    int count=Math.min(lastScan.size(),scanRows*scanCols);int rows=(count+scanCols-1)/scanCols;
+    for(int r=0;r<rows;r++){LinearLayout line=row();for(int c=0;c<scanCols;c++){int idx=r*scanCols+c;if(idx<count){int val=lastScan.get(idx);TextView cell=txt(""+val,10,0xffffffff);cell.setGravity(Gravity.CENTER);cell.setTypeface(null,1);cell.setBackground(shape(scanColor(val,lo,hi),0));LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(0,dp(42),1);cp.setMargins(dp(2),dp(2),dp(2),dp(2));line.addView(cell,cp);}else{View blank=new View(this);LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(0,dp(42),1);cp.setMargins(dp(2),dp(2),dp(2),dp(2));line.addView(blank,cp);}}content.addView(line);}
+    content.addView(heading("SCAN GRAPH"));
+    View chart=new View(this){protected void onDraw(Canvas canvas){super.onDraw(canvas);float w=getWidth(),h=getHeight();if(w<=0||h<=0)return;Paint p=new Paint(3);p.setColor(line());p.setStrokeWidth(dp(1));for(int i=1;i<4;i++)canvas.drawLine(0,h*i/4,w,h*i/4,p);p.setColor(accent);p.setStrokeWidth(dp(2));p.setStyle(Paint.Style.STROKE);Path path=new Path();for(int i=0;i<lastScan.size();i++){float x=lastScan.size()==1?w/2:(w-8)*i/(lastScan.size()-1)+4;float y=h-4-(lastScan.get(i)/5000f)*(h-8);if(i==0)path.moveTo(x,y);else path.lineTo(x,y);}canvas.drawPath(path,p);p.setStyle(Paint.Style.FILL);}};
+    chart.setBackground(shape(panel(),line()));LinearLayout.LayoutParams chartP=new LinearLayout.LayoutParams(-1,dp(150));chartP.bottomMargin=dp(14);content.addView(chart,chartP);
   }
   private void settings(){
     content.addView(heading("SETTINGS"));content.addView(label("APPEARANCE"));
@@ -184,8 +209,8 @@ public class MainActivity extends Activity {
     for(String s:logs){TextView t=txt(s,13,0xff20c997);t.setPadding(dp(10),dp(7),dp(10),dp(7));t.setBackground(shape(panel(),line()));card(t);}
     Button clear=btn("CLEAR LOG");clear.setOnClickListener(v->{tap();logs.clear();show("TERMINAL");});content.addView(clear);
   }
-  private void accept(int v){if(v<0||v>5000){toast("Value must be 0–5000");return;}last=v;min=Math.min(min,v);max=Math.max(max,v);if(!tab.equals("LIVE")){samples.addLast(v);while(samples.size()>300)samples.removeFirst();logs.add(0,String.format(Locale.US,"%tT   %d",new Date(),v));if(logs.size()>200)logs.remove(logs.size()-1);}if(alertSound||alertVibe){if(alertSound)tone();if(alertVibe)vibrate(45);}if(tab.equals("LIVE")||tab.equals("MANUAL")||tab.equals("AUTOMATIC"))show(tab);}
-  private void acceptLine(String s){if(s.trim().equalsIgnoreCase("a")){matrixScanActive=!matrixScanActive;if(!tab.equals("LIVE"))logs.add(0,matrixScanActive?"MATRIX SCAN START":"MATRIX SCAN END");return;}try{accept(Integer.parseInt(s.trim()));}catch(Exception e){if(!tab.equals("LIVE"))logs.add(0,"INVALID  "+s);}}
+  private void accept(int v){if(v<0||v>5000){toast("Value must be 0–5000");return;}last=v;min=Math.min(min,v);max=Math.max(max,v);if(matrixScanActive)activeScan.add(v);if(!tab.equals("LIVE")){samples.addLast(v);while(samples.size()>300)samples.removeFirst();logs.add(0,String.format(Locale.US,"%tT   %d",new Date(),v));if(logs.size()>200)logs.remove(logs.size()-1);}if(alertSound||alertVibe){if(alertSound)tone();if(alertVibe)vibrate(45);}if(tab.equals("LIVE")||tab.equals("MANUAL")||tab.equals("AUTOMATIC"))show(tab);}
+  private void acceptLine(String s){if(s.trim().equalsIgnoreCase("a")){matrixScanActive=!matrixScanActive;if(matrixScanActive){activeScan.clear();}else{lastScan.clear();lastScan.addAll(activeScan);activeScan.clear();}if(!tab.equals("LIVE")){logs.add(0,matrixScanActive?"MATRIX SCAN START":"MATRIX SCAN END");handler.post(()->{if(tab.equals("MANUAL")||tab.equals("AUTOMATIC")||tab.equals("PIN"))show(tab);});}return;}try{accept(Integer.parseInt(s.trim()));}catch(Exception e){if(!tab.equals("LIVE"))logs.add(0,"INVALID  "+s);}}
   private void chooseDevice(){if(Build.VERSION.SDK_INT>=31&&checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.BLUETOOTH_CONNECT,Manifest.permission.BLUETOOTH_SCAN},BT_REQ);return;}try{BluetoothAdapter a=BluetoothAdapter.getDefaultAdapter();if(a==null){toast("Bluetooth unavailable");return;}ArrayList<BluetoothDevice> list=new ArrayList<>(a.getBondedDevices());if(list.isEmpty()){toast("Pair the device in Android settings first");return;}String[] names=new String[list.size()];for(int i=0;i<list.size();i++)names[i]=list.get(i).getName()+" • "+list.get(i).getAddress();new AlertDialog.Builder(this).setTitle("Paired devices").setItems(names,(x,n)->connect(list.get(n))).setNegativeButton("Cancel",null).show();}catch(Exception e){toast("Bluetooth permission required");}}
   private void connect(BluetoothDevice dev){
     disconnect();status.setText("● CONNECTING…");
