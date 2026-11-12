@@ -99,14 +99,14 @@ public class MainActivity extends Activity {
     content.addView(heading("MAGNETOMETRIC SURVEY"));
     TextView sub=txt("Single-channel acquisition workspace",12,muted());content.addView(sub);
     LinearLayout dev=row();TextView dt=txt("⌁   DEVICE CONNECTION",14,fg());dt.setTypeface(null,1);dev.addView(dt,new LinearLayout.LayoutParams(0,dp(54),1));TextView go=txt("CONNECT  ›",11,accent);dev.addView(go);dev.setPadding(dp(14),0,dp(14),0);dev.setBackground(shape(panel(),line()));dev.setOnClickListener(v->{tap();show("DEVICE");});LinearLayout.LayoutParams dlp=new LinearLayout.LayoutParams(-1,dp(54));dlp.topMargin=dp(18);dlp.bottomMargin=dp(18);content.addView(dev,dlp);
-    LinearLayout r1=row();r1.addView(tile("◉","LIVE","Real-time view","LIVE"),new LinearLayout.LayoutParams(0,dp(154),1));space(r1);r1.addView(tile("⌖","PIN","Point survey","PIN"),new LinearLayout.LayoutParams(0,dp(154),1));LinearLayout.LayoutParams r1p=new LinearLayout.LayoutParams(-1,-2);r1p.bottomMargin=dp(10);content.addView(r1,r1p);
+    LinearLayout r1=row();r1.addView(tile("◉","LIVE","Real-time view","LIVE"),new LinearLayout.LayoutParams(0,dp(154),1));space(r1);r1.addView(tile("⌖","PIN","Point survey","PIN"),new LinearLayout.LayoutParams(0,dp(154),1));LinearLayout.LayoutParams r1p=new LinearLayout.LayoutParams(-1,-2);r1p.bottomMargin=dp(16);content.addView(r1,r1p);
     LinearLayout r2=row();r2.addView(tile("▷","AUTOMATIC","Automatic scan","AUTOMATIC"),new LinearLayout.LayoutParams(0,dp(154),1));space(r2);r2.addView(tile("✥","MANUAL","Manual survey","MANUAL"),new LinearLayout.LayoutParams(0,dp(154),1));content.addView(r2,new LinearLayout.LayoutParams(-1,-2));
     LinearLayout set=row();TextView st=txt("⚙   SETTINGS",14,fg());st.setTypeface(null,1);set.addView(st);set.setPadding(dp(16),0,dp(16),0);set.setBackground(shape(panel(),line()));set.setOnClickListener(v->{tap();show("SETTINGS");});LinearLayout.LayoutParams setp=new LinearLayout.LayoutParams(-1,dp(48));setp.topMargin=dp(18);content.addView(set,setp);
     TextView term=txt("OPEN DATA TERMINAL  →",11,accent);term.setGravity(Gravity.CENTER);term.setPadding(0,dp(16),0,dp(8));term.setOnClickListener(v->{tap();show("TERMINAL");});content.addView(term);
   }
   private void space(LinearLayout r){View s=new View(this);r.addView(s,new LinearLayout.LayoutParams(dp(10),1));}
   private View tile(String icon,String title,String desc,String dest){
-    LinearLayout box=col();box.setGravity(Gravity.CENTER);box.setPadding(dp(10),dp(12),dp(10),dp(12));box.setBackground(shape(panel(),line()));
+    LinearLayout box=col();box.setGravity(Gravity.CENTER);box.setPadding(dp(10),dp(12),dp(10),dp(12));box.setBackground(shape(panel(),line()));box.setElevation(dp(2));
     TextView i=txt(icon,36,accent);i.setGravity(Gravity.CENTER);box.addView(i,new LinearLayout.LayoutParams(-1,dp(58)));
     TextView t=txt(title,15,fg());t.setGravity(Gravity.CENTER);t.setTypeface(null,1);box.addView(t);
     TextView d=txt(desc,10,muted());d.setGravity(Gravity.CENTER);box.addView(d);
@@ -198,6 +198,7 @@ public class MainActivity extends Activity {
           if(i<data.size()){p.setColor(scanColor(data.get(i),low,high));canvas.drawRect(x,y,x+cell,y+cell,p);}
           p.setColor(0x887f929f);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(dp(1));canvas.drawRect(x+dp(.5f),y+dp(.5f),x+cell-dp(.5f),y+cell-dp(.5f),p);p.setStyle(Paint.Style.FILL);
           if(i<data.size()){
+            if(matrixScanActive&&i==data.size()-1){p.setColor(0xffffffff);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(dp(2.5f));canvas.drawRect(x+dp(2),y+dp(2),x+cell-dp(2),y+cell-dp(2),p);p.setStyle(Paint.Style.FILL);}
             p.setColor(0xffffffff);p.setTextSize(dp(9));canvas.drawText("#"+(i+1),x+cell/2,y+cell*.42f,p);
             p.setTextSize(dp(13));canvas.drawText(""+data.get(i),x+cell/2,y+cell*.72f,p);
           }
@@ -260,7 +261,7 @@ public class MainActivity extends Activity {
   private void accept(int v){
     if(v<0||v>5000){toast("Value must be 0–5000");return;}
     last=v;min=Math.min(min,v);max=Math.max(max,v);
-    if(matrixScanActive){int idx=activeScan.size();if(idx<scanRows*scanCols){activeScan.add(v);int col=idx/scanRows;signalAlert(col==scanCols-1?500:200);}}
+    if(matrixScanActive){int idx=activeScan.size();if(idx<scanRows*scanCols){activeScan.add(v);boolean endOfColumn=((idx+1)%scanRows)==0;signalAlert(endOfColumn?500:200);}}
     if(!tab.equals("LIVE")){samples.addLast(v);while(samples.size()>300)samples.removeFirst();logs.add(0,String.format(Locale.US,"%tT   RX %d",new Date(),v));if(logs.size()>200)logs.remove(logs.size()-1);}
     if(tab.equals("PIN"))updatePinSignal(v);
     if((alertSound||alertVibe)&&!matrixScanActive&& !tab.equals("PIN"))signalAlert(45);
@@ -357,7 +358,7 @@ public class MainActivity extends Activity {
   }
 
   private boolean refreshPending=false;
-  private void requestRefresh(){if(refreshPending)return;refreshPending=true;handler.postDelayed(()->{refreshPending=false;if(tab.equals("LIVE")||tab.equals("MANUAL")||tab.equals("AUTOMATIC")||tab.equals("PIN"))show(tab);},60);}
+  private void requestRefresh(){if(refreshPending)return;refreshPending=true;handler.postDelayed(()->{refreshPending=false;if(tab.equals("LIVE")||tab.equals("MANUAL")||tab.equals("AUTOMATIC")||tab.equals("PIN"))show(tab);},32);}
   private void finishMatrixScan(){matrixScanActive=false;autoRunning=false;lastScan.clear();lastScan.addAll(activeScan);activeScan.clear();if(!lastScan.isEmpty())saveScanToGallery();if(!tab.equals("LIVE"))logs.add(0,"MATRIX SCAN END • "+lastScan.size()+" values");}
   private int[] scanCell(int index){int col=index/scanRows,offset=index%scanRows;int row=(col%2==0)?scanRows-1-offset:offset;return new int[]{row,col};}
   private void galleryButton(){Button g=btn("OPEN SAVED SCAN GALLERY");g.setOnClickListener(v->{tap();show("GALLERY");});content.addView(g);}
