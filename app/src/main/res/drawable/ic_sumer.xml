@@ -3,17 +3,27 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path android:fillColor="#20272E" android:pathData="M0,0h108v108h-108z"/>
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="#F2F7FF"
-        android:strokeWidth="4.2"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M21,39 C17,33 8,35 8,42 C8,49 21,47 21,57 C21,66 11,69 7,62
-                          M28,36 L28,58 C28,69 40,69 40,58 L40,36
-                          M47,66 L47,36 L53,50 L59,36 L59,66
-                          M78,36 L66,36 L66,66 L78,66 M66,51 L76,51
-                          M85,66 L85,36 L94,36 C103,36 103,50 94,51 L85,51 M92,51 L101,66"/>
-    <path android:fillColor="#18BFFF" android:pathData="M8,78 L100,78 L100,82 L8,82 Z"/>
+    <path android:fillColor="#101B2A" android:pathData="M0,0h108v108h-108z"/>
+    <path android:fillColor="#00000000" android:strokeColor="#5537BFFF" android:strokeWidth="1.8"
+        android:pathData="M-8,48 C10,8 42,8 54,48 C66,88 98,88 116,48 M-8,60 C10,20 42,20 54,60 C66,100 98,100 116,60"/>
+    <path android:fillColor="#00000000" android:strokeColor="#7745D9FF" android:strokeWidth="1.4"
+        android:pathData="M-10,36 C10,0 42,0 54,36 C66,72 98,72 118,36 M-10,72 C10,36 42,36 54,72 C66,108 98,108 118,72"/>
+    <path android:fillColor="#00000000" android:strokeColor="#F2F7FF" android:strokeWidth="3.7"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M23,39 C18,33 10,35 10,42 C10,49 23,47 23,56 C23,65 13,68 9,62
+        M29,38 L29,57 C29,67 41,67 41,57 L41,38
+        M47,65 L47,38 L53,51 L59,38 L59,65
+        M77,38 L66,38 L66,65 L77,65 M66,51 L75,51
+        M84,65 L84,38 L93,38 C102,38 102,50 93,51 L84,51 M91,51 L100,65"/>
+    <path android:fillColor="#00000000" android:strokeColor="#18BFFF" android:strokeWidth="2.0"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M22,77 L29,77 L25.5,77 L25.5,85
+        M33,77 L40,77 M33,77 L33,85 L40,85 M33,81 L39,81
+        M44,85 C38,85 38,77 44,77
+        M48,77 L48,85 M48,77 L55,85 L55,77
+        M59,77 L66,77 M62.5,77 L62.5,85
+        M70,85 L70,77 L77,77 M70,81 L76,81
+        M81,77 L81,85 M81,77 L88,85 L88,77
+        M92,77 C85,77 85,85 92,85 M92,81 L96,81 L96,85"/>
+    <path android:fillColor="#18BFFF" android:pathData="M9,91 L99,91 L99,93 L9,93 Z"/>
 </vector>
