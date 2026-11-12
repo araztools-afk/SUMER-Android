@@ -96,8 +96,10 @@ public class MainActivity extends Activity {
     }
     private void numeric(LinearLayout p){
         p.addView(text("نمایش عددی و Live",15,Color.rgb(115,195,230)));stats(p);
-        graph=new GraphView();p.addView(graph,new LinearLayout.LayoutParams(-1,dp(190)));
-        p.addView(text("با رسیدن هر عدد، مقدار و نمودار فوراً به‌روزرسانی می‌شوند. داده‌های نمودار فقط برای نمایش آخرین ۳۰۰ نمونه نگهداری می‌شوند.",12,Color.LTGRAY));
+        graph=new GraphView();p.addView(graph,new LinearLayout.LayoutParams(-1,dp(150)));
+        p.addView(text("تصویر بلوک Live — با دریافت تک‌تک داده‌ها فوراً رفرش می‌شود",13,Color.WHITE));
+        matrixView=new MatrixView();p.addView(matrixView,new LinearLayout.LayoutParams(-1,dp(270)));
+        p.addView(text("نمودار فقط ۳۰۰ نمونه اخیر را نشان می‌دهد؛ نقشه رنگی نیز با هر داده تازه به‌روزرسانی می‌شود.",12,Color.LTGRAY));
         manualControls(p);
         p.addView(button("پاک‌سازی داده‌های نمایشی",()->resetData()));
     }
