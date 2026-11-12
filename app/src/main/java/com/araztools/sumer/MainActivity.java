@@ -33,7 +33,8 @@ public class MainActivity extends Activity {
   private int muted(){return dark?0xff9aacc2:0xff62748b;}
   private int line(){return dark?0xff263c57:0xffd2ddea;}
   private int dp(float n){return (int)(n*getResources().getDisplayMetrics().density+.5f);}
-  @Override public void onCreate(Bundle b){super.onCreate(b);getWindow().setNavigationBarColor(bg());getWindow().setStatusBarColor(bg());getWindow().getDecorView().setSystemUiVisibility(dark?0:View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);if(!getPreferences(0).getBoolean("activated",false)){registration();}else shell();}
+  @Override public void onCreate(Bundle b){super.onCreate(b);android.content.SharedPreferences pref=getPreferences(0);dark=pref.getBoolean("dark",true);accent=pref.getInt("accent",0xff18bfff);feedbackSound=pref.getBoolean("feedbackSound",false);feedbackVibe=pref.getBoolean("feedbackVibe",true);alertSound=pref.getBoolean("alertSound",false);alertVibe=pref.getBoolean("alertVibe",false);baud=pref.getInt("baud",9600);getWindow().setNavigationBarColor(bg());getWindow().setStatusBarColor(bg());getWindow().getDecorView().setSystemUiVisibility(dark?0:View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);if(!pref.getBoolean("activated",false)){registration();}else shell();}
+  private void persistSettings(){getPreferences(0).edit().putBoolean("dark",dark).putInt("accent",accent).putBoolean("feedbackSound",feedbackSound).putBoolean("feedbackVibe",feedbackVibe).putBoolean("alertSound",alertSound).putBoolean("alertVibe",alertVibe).putInt("baud",baud).apply();}
   private TextView txt(String s,int size,int color){TextView t=new TextView(this);t.setText(s);t.setTextSize(size);t.setTextColor(color);t.setGravity(Gravity.CENTER_VERTICAL);return t;}
   private GradientDrawable shape(int color,int stroke){GradientDrawable d=new GradientDrawable();d.setColor(color);d.setCornerRadius(dp(18));if(stroke!=0)d.setStroke(dp(1),stroke);return d;}
   private LinearLayout col(){LinearLayout l=new LinearLayout(this);l.setOrientation(1);return l;}
@@ -122,21 +123,21 @@ public class MainActivity extends Activity {
   }
   private void settings(){
     content.addView(heading("SETTINGS"));content.addView(label("APPEARANCE"));
-    addChoice("Theme",new String[]{"Dark","Light"},dark?0:1,i->{dark=i==0;shell();});
-    addChoice("Accent colour",new String[]{"Ice blue","Violet","Emerald","Amber","Rose"},paletteIndex(),i->{accent=palette[i];shell();});
+    addChoice("Theme",new String[]{"Dark","Light"},dark?0:1,i->{dark=i==0;persistSettings();shell();});
+    addChoice("Accent colour",new String[]{"Ice blue","Violet","Emerald","Amber","Rose"},paletteIndex(),i->{accent=palette[i];persistSettings();shell();});
     content.addView(label("TOUCH FEEDBACK"));
-    addChoice("Feedback",new String[]{"Sound","Vibration","Both","None"},feedbackSound&&feedbackVibe?2:feedbackSound?0:feedbackVibe?1:3,i->{feedbackSound=i==0||i==2;feedbackVibe=i==1||i==2;});
+    addChoice("Feedback",new String[]{"Sound","Vibration","Both","None"},feedbackSound&&feedbackVibe?2:feedbackSound?0:feedbackVibe?1:3,i->{feedbackSound=i==0||i==2;feedbackVibe=i==1||i==2;persistSettings();});
     content.addView(label("SIGNAL ALERTS  •  MANUAL"));
-    addChoice("Alert output",new String[]{"Speaker","Vibration","Both","None"},alertSound&&alertVibe?2:alertSound?0:alertVibe?1:3,i->{alertSound=i==0||i==2;alertVibe=i==1||i==2;});
+    addChoice("Alert output",new String[]{"Speaker","Vibration","Both","None"},alertSound&&alertVibe?2:alertSound?0:alertVibe?1:3,i->{alertSound=i==0||i==2;alertVibe=i==1||i==2;persistSettings();});
     content.addView(label("CONNECTION"));
-    addChoice("Baud rate",new String[]{"1200","2400","4800","9600","19200","38400","57600","115200"},new int[]{1200,2400,4800,9600,19200,38400,57600,115200}.length>0?baudIndex():3,i->{int[] a={1200,2400,4800,9600,19200,38400,57600,115200};baud=a[i];updateStatus();});
+    addChoice("Baud rate",new String[]{"1200","2400","4800","9600","19200","38400","57600","115200"},new int[]{1200,2400,4800,9600,19200,38400,57600,115200}.length>0?baudIndex():3,i->{int[] a={1200,2400,4800,9600,19200,38400,57600,115200};baud=a[i];persistSettings();updateStatus();});
     TextView about=txt("SUMER • MAGNETOMETRIC SURVEY SYSTEM\nSingle-channel prototype • Android",12,muted());about.setPadding(dp(4),dp(20),dp(4),dp(20));content.addView(about);
   }
   private int paletteIndex(){for(int i=0;i<palette.length;i++)if(palette[i]==accent)return i;return 0;}
   private int baudIndex(){int[] a={1200,2400,4800,9600,19200,38400,57600,115200};for(int i=0;i<a.length;i++)if(a[i]==baud)return i;return 3;}
   interface Pick{void choose(int i);}
   private void addChoice(String title,String[] opts,int selected,Pick pick){
-    LinearLayout box=col();box.setPadding(dp(13),dp(8),dp(13),dp(8));box.setBackground(shape(panel(),line()));TextView t=txt(title,13,fg());box.addView(t);Spinner sp=new Spinner(this);ArrayAdapter<String>a=new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,opts);sp.setAdapter(a);sp.setSelection(Math.max(0,selected));final boolean[] initial={true};sp.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener(){public void onNothingSelected(android.widget.AdapterView<?>p){}public void onItemSelected(android.widget.AdapterView<?>p,View v,int pos,long id){if(initial[0]){initial[0]=false;return;}pick.choose(pos);}});box.addView(sp);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.bottomMargin=dp(9);content.addView(box,p);
+    LinearLayout box=col();box.setPadding(dp(13),dp(8),dp(13),dp(8));box.setBackground(shape(panel(),line()));TextView t=txt(title,13,fg());box.addView(t);Spinner sp=new Spinner(this);ArrayAdapter<String>a=new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,opts);sp.setAdapter(a);sp.setSelection(Math.max(0,selected));final boolean[] initial={true};sp.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener(){public void onNothingSelected(android.widget.AdapterView<?>p){}public void onItemSelected(android.widget.AdapterView<?>p,View v,int pos,long id){if(initial[0]){initial[0]=false;return;}pick.choose(pos);tap();}});box.addView(sp);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.bottomMargin=dp(9);content.addView(box,p);
   }
   private void device(){
     content.addView(heading("DEVICE CONNECTION"));content.addView(txt("Bluetooth Classic / SPP • paired devices",12,muted()));
