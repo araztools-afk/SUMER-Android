@@ -48,17 +48,17 @@ public class MainActivity extends Activity {
   private AlertDialog discoveryDialog;
   private BroadcastReceiver discoveryReceiver;
   private static final int BT_REQ=71;
-  private int bg(){return dark?0xff242a30:0xffeef3f9;}
-  private int panel(){return dark?0xff303840:0xffffffff;}
-  private int panel2(){return dark?0xff3a444e:0xffe2eaf4;}
-  private int fg(){return dark?0xfff2f7ff:0xff142238;}
-  private int muted(){return dark?0xffb2bdc8:0xff62748b;}
-  private int line(){return dark?0xff4b5864:0xffd2ddea;}
+  private int bg(){return dark?0xff030a18:0xffeef3f9;}
+  private int panel(){return dark?0xff0b1730:0xffffffff;}
+  private int panel2(){return dark?0xff102447:0xffe2eaf4;}
+  private int fg(){return dark?0xfff4f8ff:0xff142238;}
+  private int muted(){return dark?0xffa9bdd8:0xff62748b;}
+  private int line(){return dark?0xff24517f:0xffd2ddea;}
   private int dp(float n){return (int)(n*getResources().getDisplayMetrics().density+.5f);}
   @Override public void onCreate(Bundle b){super.onCreate(b);android.content.SharedPreferences pref=getPreferences(0);dark=pref.getBoolean("dark",true);accent=pref.getInt("accent",0xff18bfff);feedbackSound=pref.getBoolean("feedbackSound",true);feedbackVibe=pref.getBoolean("feedbackVibe",true);alertSound=pref.getBoolean("alertSound",true);alertVibe=pref.getBoolean("alertVibe",false);baud=pref.getInt("baud",9600);scanRows=pref.getInt("scanRows",4);scanCols=pref.getInt("scanCols",3);scanViewMode=pref.getString("scanViewMode","CLASSIC");language=pref.getString("language","en");projectName=pref.getString("projectName","SUMER");autoReconnect=pref.getBoolean("autoReconnect",true);lastDeviceAddress=pref.getString("lastDeviceAddress","");getWindow().setNavigationBarColor(bg());getWindow().setStatusBarColor(bg());getWindow().getDecorView().setSystemUiVisibility(dark?0:View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);if(!pref.getBoolean("activated",false)){registration();}else{shell();if(autoReconnect&&!lastDeviceAddress.isEmpty())handler.postDelayed(()->{if(Build.VERSION.SDK_INT<31||checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT)==PackageManager.PERMISSION_GRANTED)connectAddress(lastDeviceAddress);},900);}}
   private void persistSettings(){getPreferences(0).edit().putBoolean("dark",dark).putInt("accent",accent).putBoolean("feedbackSound",feedbackSound).putBoolean("feedbackVibe",feedbackVibe).putBoolean("alertSound",alertSound).putBoolean("alertVibe",alertVibe).putInt("baud",baud).putInt("scanRows",scanRows).putInt("scanCols",scanCols).putString("scanViewMode",scanViewMode).putString("language",language).putString("projectName",projectName).putBoolean("autoReconnect",autoReconnect).apply();}
   private TextView txt(String s,int size,int color){TextView t=new TextView(this);t.setText(tr(s));t.setTextSize(size);t.setTextColor(color);t.setGravity(Gravity.CENTER_VERTICAL);return t;}
-  private GradientDrawable shape(int color,int stroke){GradientDrawable d=new GradientDrawable();d.setColor(color);d.setCornerRadius(dp(18));if(stroke!=0)d.setStroke(dp(1),stroke);return d;}
+  private GradientDrawable shape(int color,int stroke){GradientDrawable d;if(dark){int top=Color.rgb(Math.min(255,Color.red(color)+7),Math.min(255,Color.green(color)+15),Math.min(255,Color.blue(color)+27));d=new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{top,color});}else{d=new GradientDrawable();d.setColor(color);}d.setCornerRadius(dp(18));if(stroke!=0)d.setStroke(dp(1),dark?0xff286ca5:stroke);return d;}
   private LinearLayout col(){LinearLayout l=new LinearLayout(this);l.setOrientation(1);return l;}
   private LinearLayout row(){LinearLayout l=new LinearLayout(this);l.setOrientation(0);l.setGravity(Gravity.CENTER_VERTICAL);return l;}
   private void pad(View v,int a){v.setPadding(dp(a),dp(a),dp(a),dp(a));}
@@ -74,7 +74,7 @@ public class MainActivity extends Activity {
     TextView error=txt("",13,0xffff647c);error.setGravity(Gravity.CENTER);page.addView(error);
     activate.setOnClickListener(v->{tap();String s=input.getText().toString().trim().toUpperCase(Locale.US);if(s.equals("13651365")){getPreferences(0).edit().putBoolean("activated",true).putString("license",s).apply();startWelcomeExperience();shell();}else {error.setText("Invalid serial format. Please check the code.");vibrate(200);}});
   }
-  private Button btn(String s){Button b=new Button(this);b.setText(tr(s));b.setTextColor(0xffffffff);b.setAllCaps(false);b.setTextSize(14);b.setBackground(shape(accent,0));return b;}
+  private Button btn(String s){Button b=new Button(this);b.setText(tr(s));b.setTextColor(0xffffffff);b.setAllCaps(false);b.setTextSize(14);GradientDrawable g=new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0xff159dff,0xff0645d9});g.setCornerRadius(dp(16));g.setStroke(dp(1),0xff55cfff);b.setBackground(g);b.setElevation(dp(4));return b;}
   private TextView label(String s){TextView t=txt(s,12,muted());t.setPadding(dp(2),dp(10),dp(2),dp(5));return t;}
   private void shell(){
     getWindow().setStatusBarColor(bg());getWindow().setNavigationBarColor(bg());getWindow().getDecorView().setSystemUiVisibility(dark?0:View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
@@ -94,7 +94,7 @@ public class MainActivity extends Activity {
     String[] icons={"⌂","◉","⌖","▷","✥","⚙"};
     for(int i=0;i<names.length;i++){final String n=names[i];TextView item=txt(icons[i]+"\n"+names[i],9,n.equals(tab)?accent:muted());item.setText(icons[i]+"\n"+tr(names[i]));item.setGravity(Gravity.CENTER);item.setOnClickListener(v->{tap();show(n);});bottom.addView(item,new LinearLayout.LayoutParams(0,-1,1));}
   }
-  private void card(View v){v.setBackground(shape(panel(),line()));LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.bottomMargin=dp(10);content.addView(v,p);}
+  private void card(View v){v.setBackground(shape(panel(),line()));v.setElevation(dp(3));LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.bottomMargin=dp(12);content.addView(v,p);}
   private TextView heading(String s){TextView t=txt(s,18,fg());t.setTypeface(null,1);t.setPadding(dp(2),dp(14),dp(2),dp(12));return t;}
   private void home(){
     content.addView(heading("MAGNETOMETRIC SURVEY"));
