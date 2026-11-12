@@ -90,8 +90,8 @@ public class MainActivity extends Activity {
   private void show(String name){
     tab=name;content.removeAllViews();bottom.removeAllViews();
     if(name.equals("HOME"))home();else if(name.equals("LIVE"))live();else if(name.equals("PIN"))pin();else if(name.equals("AUTOMATIC"))automatic();else if(name.equals("MANUAL"))manual();else if(name.equals("SETTINGS"))settings();else if(name.equals("DEVICE"))device();else if(name.equals("TERMINAL"))terminal();else if(name.equals("GALLERY"))gallery();
-    String[] names={"HOME","LIVE","PIN","AUTOMATIC","MANUAL","SETTINGS"};
-    String[] icons={"⌂","◉","⌖","▷","✥","⚙"};
+    boolean landscape=getResources().getDisplayMetrics().widthPixels>getResources().getDisplayMetrics().heightPixels;String[] names=landscape?new String[]{"LIVE","PIN","AUTOMATIC","MANUAL"}:new String[]{"HOME","LIVE","PIN","AUTOMATIC","MANUAL","SETTINGS"};
+    String[] icons=landscape?new String[]{"◉","⌖","▷","✥"}:new String[]{"⌂","◉","⌖","▷","✥","⚙"};
     for(int i=0;i<names.length;i++){final String n=names[i];TextView item=txt(icons[i]+"\n"+names[i],9,n.equals(tab)?accent:muted());item.setText(icons[i]+"\n"+tr(names[i]));item.setGravity(Gravity.CENTER);item.setOnClickListener(v->{tap();show(n);});bottom.addView(item,new LinearLayout.LayoutParams(0,-1,1));}
   }
   private void card(View v){v.setBackground(shape(panel(),line()));v.setElevation(dp(3));LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.bottomMargin=dp(12);content.addView(v,p);}
