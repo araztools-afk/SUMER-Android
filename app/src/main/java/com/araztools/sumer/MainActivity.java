@@ -63,7 +63,7 @@ public class MainActivity extends Activity {
   private LinearLayout row(){LinearLayout l=new LinearLayout(this);l.setOrientation(0);l.setGravity(Gravity.CENTER_VERTICAL);return l;}
   private void pad(View v,int a){v.setPadding(dp(a),dp(a),dp(a),dp(a));}
   private void registration(){
-    LinearLayout page=col();page.setGravity(Gravity.CENTER);page.setPadding(dp(28),dp(24),dp(28),dp(24));page.setBackgroundColor(bg());setContentView(page);
+    LinearLayout page=col();page.setGravity(Gravity.CENTER);page.setPadding(dp(28),dp(24),dp(28),dp(24));page.setBackground(shape(bg(),0));setContentView(page);
     TextView logo=txt("SUMER",46,fg());logo.setGravity(Gravity.CENTER);logo.setTypeface(null,1);logo.setLetterSpacing(.16f);logo.setBackground(shape(panel(),accent));logo.setPadding(dp(18),dp(20),dp(18),dp(20));LinearLayout.LayoutParams logoP=new LinearLayout.LayoutParams(-1,dp(112));logoP.topMargin=dp(20);logoP.bottomMargin=dp(12);page.addView(logo,logoP);
     TextView sub=txt("MAGNETOMETRIC SURVEY SYSTEM",12,accent);sub.setGravity(Gravity.CENTER);sub.setLetterSpacing(.13f);page.addView(sub);
     TextView title=txt("SERIAL REGISTRATION",19,fg());title.setGravity(Gravity.CENTER);title.setTypeface(null,1);page.addView(title);
@@ -78,13 +78,13 @@ public class MainActivity extends Activity {
   private TextView label(String s){TextView t=txt(s,12,muted());t.setPadding(dp(2),dp(10),dp(2),dp(5));return t;}
   private void shell(){
     getWindow().setStatusBarColor(bg());getWindow().setNavigationBarColor(bg());getWindow().getDecorView().setSystemUiVisibility(dark?0:View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
-    root=col();root.setBackgroundColor(bg());root.setLayoutDirection(("fa".equals(language)||"ar".equals(language))?View.LAYOUT_DIRECTION_RTL:View.LAYOUT_DIRECTION_LTR);setContentView(root);
+    root=col();root.setBackground(shape(bg(),0));root.setLayoutDirection(("fa".equals(language)||"ar".equals(language))?View.LAYOUT_DIRECTION_RTL:View.LAYOUT_DIRECTION_LTR);setContentView(root);
     LinearLayout top=row();top.setPadding(dp(16),dp(9),dp(16),dp(9));
-    brand=txt("SUMER",25,fg());brand.setTypeface(null,1);top.addView(brand,new LinearLayout.LayoutParams(0,dp(44),1));
+    brand=txt("SUMER",25,fg());brand.setTypeface(null,1);brand.setLetterSpacing(.12f);brand.setShadowLayer(dp(8),0,0,0xff168dff);top.addView(brand,new LinearLayout.LayoutParams(0,dp(44),1));
     root.addView(top);
     status=txt("●  "+tr("DEVICE DISCONNECTED")+"     •     9600 "+tr("BAUD"),11,muted());status.setPadding(dp(16),dp(10),dp(16),dp(10));status.setBackground(shape(panel(),line()));LinearLayout.LayoutParams sl=new LinearLayout.LayoutParams(-1,dp(42));sl.setMargins(dp(14),0,dp(14),dp(10));root.addView(status,sl);status.setOnClickListener(v->{tap();show("DEVICE");});
     ScrollView scroll=new ScrollView(this);content=col();content.setPadding(dp(14),dp(4),dp(14),dp(18));scroll.addView(content);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
-    bottom=row();bottom.setPadding(dp(8),dp(7),dp(8),dp(7));bottom.setBackgroundColor(panel());root.addView(bottom,new LinearLayout.LayoutParams(-1,dp(60)));
+    bottom=row();bottom.setPadding(dp(8),dp(7),dp(8),dp(7));bottom.setBackground(shape(panel(),line()));bottom.setElevation(dp(8));root.addView(bottom,new LinearLayout.LayoutParams(-1,dp(60)));
     show(tab);
   }
   private void show(String name){
