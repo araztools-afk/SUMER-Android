@@ -99,11 +99,11 @@ public class MainActivity extends Activity {
   private void home(){
     content.addView(heading("MAGNETOMETRIC SURVEY"));
     TextView sub=txt("Single-channel acquisition workspace",12,muted());content.addView(sub);
-    LinearLayout dev=row();TextView dt=txt("⌁   DEVICE CONNECTION",14,fg());dt.setTypeface(null,1);dev.addView(dt,new LinearLayout.LayoutParams(0,dp(54),1));TextView go=txt("CONNECT  ›",11,accent);dev.addView(go);dev.setPadding(dp(14),0,dp(14),0);dev.setBackground(shape(panel(),line()));dev.setOnClickListener(v->{tap();show("DEVICE");});LinearLayout.LayoutParams dlp=new LinearLayout.LayoutParams(-1,dp(54));dlp.topMargin=dp(18);dlp.bottomMargin=dp(18);content.addView(dev,dlp);
+    LinearLayout dev=row();TextView dt=txt("⌁   "+tr("DEVICE CONNECTION"),14,fg());dt.setTypeface(null,1);dev.addView(dt,new LinearLayout.LayoutParams(0,dp(54),1));TextView go=txt("CONNECT  ›",11,accent);dev.addView(go);dev.setPadding(dp(14),0,dp(14),0);dev.setBackground(shape(panel(),line()));dev.setOnClickListener(v->{tap();show("DEVICE");});LinearLayout.LayoutParams dlp=new LinearLayout.LayoutParams(-1,dp(54));dlp.topMargin=dp(18);dlp.bottomMargin=dp(18);content.addView(dev,dlp);
     LinearLayout r1=row();r1.addView(tile("◉","LIVE","Real-time view","LIVE"),new LinearLayout.LayoutParams(0,dp(154),1));space(r1);r1.addView(tile("⌖","PIN","Point survey","PIN"),new LinearLayout.LayoutParams(0,dp(154),1));LinearLayout.LayoutParams r1p=new LinearLayout.LayoutParams(-1,-2);r1p.bottomMargin=dp(16);content.addView(r1,r1p);
     LinearLayout r2=row();r2.addView(tile("▷","AUTOMATIC","Automatic scan","AUTOMATIC"),new LinearLayout.LayoutParams(0,dp(154),1));space(r2);r2.addView(tile("✥","MANUAL","Manual survey","MANUAL"),new LinearLayout.LayoutParams(0,dp(154),1));content.addView(r2,new LinearLayout.LayoutParams(-1,-2));
     LinearLayout r3=row();r3.addView(new View(this),new LinearLayout.LayoutParams(0,1,.5f));r3.addView(tile("▣","PROJECTS","Saved scan projects","GALLERY"),new LinearLayout.LayoutParams(0,dp(154),1));r3.addView(new View(this),new LinearLayout.LayoutParams(0,1,.5f));LinearLayout.LayoutParams r3p=new LinearLayout.LayoutParams(-1,-2);r3p.topMargin=dp(16);content.addView(r3,r3p);
-    LinearLayout set=row();TextView st=txt("⚙   SETTINGS",14,fg());st.setTypeface(null,1);set.addView(st);set.setPadding(dp(16),0,dp(16),0);set.setBackground(shape(panel(),line()));set.setOnClickListener(v->{tap();show("SETTINGS");});LinearLayout.LayoutParams setp=new LinearLayout.LayoutParams(-1,dp(48));setp.topMargin=dp(18);content.addView(set,setp);
+    LinearLayout set=row();TextView st=txt("⚙   "+tr("SETTINGS"),14,fg());st.setTypeface(null,1);set.addView(st);set.setPadding(dp(16),0,dp(16),0);set.setBackground(shape(panel(),line()));set.setOnClickListener(v->{tap();show("SETTINGS");});LinearLayout.LayoutParams setp=new LinearLayout.LayoutParams(-1,dp(48));setp.topMargin=dp(18);content.addView(set,setp);
     TextView term=txt("OPEN DATA TERMINAL  →",11,accent);term.setGravity(Gravity.CENTER);term.setPadding(0,dp(16),0,dp(8));term.setOnClickListener(v->{tap();show("TERMINAL");});content.addView(term);
   }
   private void space(LinearLayout r){View s=new View(this);r.addView(s,new LinearLayout.LayoutParams(dp(10),1));}
@@ -164,12 +164,12 @@ public class MainActivity extends Activity {
     content.addView(heading("PIN POINT SURVEY"));
     content.addView(txt("First 2 seconds establish the baseline. The sine trace and square-wave tone respond to deviations.",12,muted()));
     stats();
-    String base=Double.isNaN(pinBaseline)?"CALIBRATING — "+pinCalibrationCount+" samples":String.format(Locale.US,"BASELINE %.1f  •  CURRENT Δ %+d  •  TONE %d Hz",pinBaseline,last<0?0:(int)Math.round(last-pinBaseline),pinFrequency);
+    String base=Double.isNaN(pinBaseline)?tr("CALIBRATING")+" — "+pinCalibrationCount+" "+tr("samples"):String.format(Locale.US,tr("BASELINE %.1f  •  CURRENT Δ %+d  •  TONE %d Hz"),pinBaseline,last<0?0:(int)Math.round(last-pinBaseline),pinFrequency);
     TextView info=txt(base,12,accent);info.setPadding(dp(8),dp(12),dp(8),dp(12));card(info);
     View wave=new View(this){protected void onDraw(Canvas canvas){super.onDraw(canvas);float w=getWidth(),h=getHeight();Paint p=new Paint(3);p.setColor(line());p.setStrokeWidth(dp(1));canvas.drawLine(0,h/2,w,h/2,p);p.setColor(accent);p.setStrokeWidth(dp(2));p.setStyle(Paint.Style.STROKE);Path path=new Path();int n=Math.max(80,pinWave.size());for(int i=0;i<n;i++){float x=(w-8)*i/Math.max(1,n-1)+4;float amp=dp(12);if(!pinWave.isEmpty()){int v=pinWave.get(Math.min(pinWave.size()-1,(int)((long)i*pinWave.size()/n)));amp=Math.min(h*.42f,dp(12)+Math.abs(v)*h/10000f);}float y=h/2-(float)Math.sin(i*.18)*amp;if(i==0)path.moveTo(x,y);else path.lineTo(x,y);}canvas.drawPath(path,p);p.setStyle(Paint.Style.FILL);}};
     wave.setBackground(shape(panel(),line()));LinearLayout.LayoutParams wp=new LinearLayout.LayoutParams(-1,dp(150));wp.bottomMargin=dp(12);content.addView(wave,wp);
     EditText name=new EditText(this);name.setSingleLine(true);name.setHint("Point name / ID");name.setTextColor(fg());name.setHintTextColor(muted());name.setBackground(shape(panel(),line()));pad(name,12);content.addView(name);
-    Button b=btn("SAVE CURRENT VALUE AS POINT");b.setOnClickListener(v->{tap();if(last<0){toast("No measurement received yet");return;}String n=name.getText().toString().trim();if(n.isEmpty())n="Point "+(pinRecords().size()+1);ArrayList<String> points=pinRecords();points.add(0,n+" | "+last+" | "+new Date());getPreferences(0).edit().putString("pinRecords",joinLines(points)).apply();toast("Point saved permanently");show("PIN");});content.addView(b);
+    Button b=btn("SAVE CURRENT VALUE AS POINT");b.setOnClickListener(v->{tap();if(last<0){toast("No measurement received yet");return;}String n=name.getText().toString().trim();if(n.isEmpty())n=tr("Point ")+(pinRecords().size()+1);ArrayList<String> points=pinRecords();points.add(0,n+" | "+last+" | "+new Date());getPreferences(0).edit().putString("pinRecords",joinLines(points)).apply();toast("Point saved permanently");show("PIN");});content.addView(b);
     testDataInput("MANUAL PIN DATA INPUT");
     content.addView(heading("SAVED POINTS"));for(String p:pinRecords()){TextView t=txt("⌖   "+p,13,fg());t.setPadding(dp(10),dp(9),dp(10),dp(9));card(t);}
   }
@@ -226,7 +226,7 @@ public class MainActivity extends Activity {
     }
     LinearLayout.LayoutParams mp=new LinearLayout.LayoutParams(-1,-2);mp.bottomMargin=dp(10);content.addView(map,mp);
     if("AI".equals(scanViewMode)){
-      LinearLayout legend=col();TextView range=txt("LOW  "+(values.isEmpty()?"—":low)+"                                         HIGH  "+(values.isEmpty()?"—":high),10,muted());legend.addView(range);
+      LinearLayout legend=col();TextView range=txt(tr("LOW")+"  "+(values.isEmpty()?"—":low)+"                                         "+tr("HIGH")+"  "+(values.isEmpty()?"—":high),10,muted());legend.addView(range);
       View gradient=new View(this);GradientDrawable spectrum=new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,new int[]{0xff174bdb,0xff00b9d6,0xff16b86a,0xffffc629,0xffed3b32});spectrum.setCornerRadius(dp(5));gradient.setBackground(spectrum);legend.addView(gradient,new LinearLayout.LayoutParams(-1,dp(9)));LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.bottomMargin=dp(12);content.addView(legend,lp);
     }
     if(values.isEmpty())return;
@@ -343,7 +343,7 @@ public class MainActivity extends Activity {
       if(Build.VERSION.SDK_INT>=33)registerReceiver(discoveryReceiver,filter,Context.RECEIVER_EXPORTED);else registerReceiver(discoveryReceiver,filter);
       adapter.startDiscovery();toast("Searching for nearby Bluetooth devices…");
       handler.postDelayed(()->{try{if(adapter.isDiscovering())adapter.cancelDiscovery();if(discoveryDialog!=null&&discoveryDialog.isShowing())discoveryDialog.setTitle("Bluetooth devices — search complete");}catch(Exception ignored){}stopDiscoveryReceiverOnly();},12000);
-    }catch(Exception e){toast("Bluetooth search failed: "+e.getMessage());}
+    }catch(Exception e){toast(tr("Bluetooth search failed: ")+e.getMessage());}
   }
   @SuppressWarnings("MissingPermission") private void addDiscovered(BluetoothDevice d,String tag){
     try{String address=d.getAddress();for(BluetoothDevice old:discoveredDevices)if(old.getAddress().equals(address))return;discoveredDevices.add(d);String name=d.getName();discoveredLabels.add((name==null||name.isEmpty()?"Bluetooth device":name)+" • "+address+" • "+tag);if(discoveredAdapter!=null)discoveredAdapter.notifyDataSetChanged();}catch(Exception ignored){}
@@ -352,16 +352,16 @@ public class MainActivity extends Activity {
   @SuppressWarnings("MissingPermission") private void stopDiscovery(){try{BluetoothAdapter a=BluetoothAdapter.getDefaultAdapter();if(a!=null&&a.isDiscovering())a.cancelDiscovery();}catch(Exception ignored){}stopDiscoveryReceiverOnly();}
   private void connect(BluetoothDevice dev){
     reconnectEnabled=true;lastDeviceAddress=dev.getAddress();getPreferences(0).edit().putString("lastDeviceAddress",lastDeviceAddress).apply();
-    disconnectSocketOnly();status.setText("● CONNECTING…");
+    disconnectSocketOnly();status.setText(tr("● CONNECTING…"));
     final BluetoothSocket localSocket;
     try{localSocket=dev.createRfcommSocketToServiceRecord(UUID.fromString("00001101-0000-1000-8000-00805F9B34FB"));socket=localSocket;}
-    catch(Exception e){status.setText("● CONNECTION FAILED");toast(e.getMessage()==null?"Connection failed":e.getMessage());scheduleReconnect();return;}
+    catch(Exception e){status.setText(tr("● CONNECTION FAILED"));toast(e.getMessage()==null?"Connection failed":e.getMessage());scheduleReconnect();return;}
     reader=new Thread(()->{
       try{
         localSocket.connect();
         if(socket!=localSocket){localSocket.close();return;}
         InputStream in=localSocket.getInputStream();
-        handler.post(()->{if(socket==localSocket)status.setText("● CONNECTED  •  "+dev.getName()+"  •  "+baud);});
+        handler.post(()->{if(socket==localSocket)status.setText(tr("● CONNECTED  •  ")+dev.getName()+"  •  "+baud+" "+tr("BAUD"));});
         ByteArrayOutputStream line=new ByteArrayOutputStream();int b;
         while(!Thread.currentThread().isInterrupted()&&(b=in.read())!=-1){
           if(b==10||b==13){
@@ -369,10 +369,10 @@ public class MainActivity extends Activity {
           }else if(line.size()<128)line.write(b);
         }
       }catch(Exception e){
-        handler.post(()->{if(socket==localSocket){status.setText("● CONNECTION LOST");toast(e.getMessage()==null?"Connection failed":e.getMessage());scheduleReconnect();}});
+        handler.post(()->{if(socket==localSocket){status.setText(tr("● CONNECTION LOST"));toast(e.getMessage()==null?"Connection failed":e.getMessage());scheduleReconnect();}});
       }finally{
         try{localSocket.close();}catch(Exception ignored){}
-        if(socket==localSocket){socket=null;handler.post(()->{if(status!=null)status.setText("● CONNECTION CLOSED");scheduleReconnect();});}
+        if(socket==localSocket){socket=null;handler.post(()->{if(status!=null)status.setText(tr("● CONNECTION CLOSED"));scheduleReconnect();});}
       }
     });reader.start();
   }
@@ -447,7 +447,7 @@ public class MainActivity extends Activity {
       for(int i=0;i<images.length;i++){File png=new File(dir,base+suffix[i]+"_"+stamp+".png");try(FileOutputStream out=new FileOutputStream(png)){images[i].compress(Bitmap.CompressFormat.PNG,100,out);}images[i].recycle();}
       File csv=new File(dir,base+"_Data_"+stamp+".csv");try(FileWriter w=new FileWriter(csv)){w.write("row,column,block,value"+System.lineSeparator());for(int i=0;i<lastScan.size();i++){int[] rc=scanCell(i);w.write((rc[0]+1)+","+(rc[1]+1)+","+(i+1)+","+lastScan.get(i)+System.lineSeparator());}}
       toast("3 project images and CSV saved");
-    }catch(Exception e){toast("Could not save scan: "+e.getMessage());}
+    }catch(Exception e){toast(tr("Could not save scan: ")+e.getMessage());}
   }
   private Bitmap renderInterpolationScan(ArrayList<Integer> values,int rows,int cols){int cell=120;int[] range=scanRange(values);Bitmap heat=createAiHeatmap(values,rows,cols,0,0,range[0],range[1]);Bitmap out=Bitmap.createBitmap(cols*cell,rows*cell,Bitmap.Config.ARGB_8888);Canvas c=new Canvas(out);Paint p=new Paint(Paint.ANTI_ALIAS_FLAG|Paint.FILTER_BITMAP_FLAG);c.drawBitmap(heat,null,new RectF(0,0,out.getWidth(),out.getHeight()),p);heat.recycle();return out;}
   private int[] scanRange(ArrayList<Integer> values){int lo=5000,hi=0;for(int v:values){lo=Math.min(lo,v);hi=Math.max(hi,v);}return new int[]{lo,hi};}
@@ -487,15 +487,15 @@ public class MainActivity extends Activity {
   private Bitmap renderPerspectiveScan(ArrayList<Integer> values,int rows,int cols){
     int panelW=700,panelH=540;Bitmap b=Bitmap.createBitmap(panelW*3,panelH,Bitmap.Config.ARGB_8888);Canvas c=new Canvas(b);c.drawColor(0xff202832);
     int[] range=scanRange(values);Paint p=new Paint(3);p.setColor(0xfff2f7ff);p.setTextSize(28);p.setTextAlign(Paint.Align.CENTER);
-    String[] names={"VIEW 1","VIEW 2","VIEW 3"};double[] angles={0.35,0.78,1.2};
+    String[] names={tr("VIEW 1"),tr("VIEW 2"),tr("VIEW 3")};double[] angles={0.35,0.78,1.2};
     for(int i=0;i<3;i++){float left=i*panelW;c.drawText(names[i],left+panelW/2,38,p);drawPerspectiveView(c,values,rows,cols,left+10,50,panelW-20,panelH-60,(float)angles[i],range[0],range[1]);if(i>0){p.setColor(0xff65717d);p.setStrokeWidth(2);c.drawLine(left,0,left,panelH,p);p.setColor(0xfff2f7ff);}}
     return b;
   }
   private void gallery(){content.addView(heading("SAVED SCAN GALLERY"));content.addView(txt("Completed matrix scans are saved on this phone. Select EXPORT to copy an image to the device gallery.",12,muted()));File dir=getProjectDirectory();TextView path=txt(tr("PROJECT FOLDER: ")+dir.getAbsolutePath(),10,muted());path.setTextIsSelectable(true);content.addView(path);File[] files=dir.listFiles((d,n)->n.endsWith(".png"));galleryFiles.clear();if(files!=null){Arrays.sort(files,(a,b)->Long.compare(b.lastModified(),a.lastModified()));galleryFiles.addAll(Arrays.asList(files));}if(galleryFiles.isEmpty()){content.addView(txt("No saved scans yet.",14,muted()));return;}for(File f:galleryFiles){LinearLayout box=col();box.setPadding(dp(10),dp(10),dp(10),dp(10));box.setBackground(shape(panel(),line()));TextView name=txt(f.getName(),12,fg());box.addView(name);ImageView image=new ImageView(this);Bitmap bm=BitmapFactory.decodeFile(f.getAbsolutePath());image.setImageBitmap(bm);image.setAdjustViewBounds(true);box.addView(image,new LinearLayout.LayoutParams(-1,dp(210)));Button export=btn("EXPORT IMAGE TO PHONE GALLERY");export.setOnClickListener(v->{tap();exportImage(f);});box.addView(export);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.bottomMargin=dp(12);content.addView(box,p);}}
-  private void exportImage(File file){try{ContentValues values=new ContentValues();values.put(MediaStore.Images.Media.DISPLAY_NAME,file.getName());values.put(MediaStore.Images.Media.MIME_TYPE,"image/png");if(Build.VERSION.SDK_INT>=29)values.put(MediaStore.Images.Media.RELATIVE_PATH,Environment.DIRECTORY_PICTURES+"/SUMER");Uri uri=getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI,values);if(uri==null)throw new IOException("MediaStore unavailable");try(InputStream in=new FileInputStream(file);OutputStream out=getContentResolver().openOutputStream(uri)){byte[] buf=new byte[8192];int n;while((n=in.read(buf))>0)out.write(buf,0,n);}toast("Image exported to Pictures/SUMER");}catch(Exception e){toast("Export failed: "+e.getMessage());}}
+  private void exportImage(File file){try{ContentValues values=new ContentValues();values.put(MediaStore.Images.Media.DISPLAY_NAME,file.getName());values.put(MediaStore.Images.Media.MIME_TYPE,"image/png");if(Build.VERSION.SDK_INT>=29)values.put(MediaStore.Images.Media.RELATIVE_PATH,Environment.DIRECTORY_PICTURES+"/SUMER");Uri uri=getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI,values);if(uri==null)throw new IOException("MediaStore unavailable");try(InputStream in=new FileInputStream(file);OutputStream out=getContentResolver().openOutputStream(uri)){byte[] buf=new byte[8192];int n;while((n=in.read(buf))>0)out.write(buf,0,n);}toast("Image exported to Pictures/SUMER");}catch(Exception e){toast(tr("Export failed: ")+e.getMessage());}}
   private ArrayList<String> pinRecords(){ArrayList<String> out=new ArrayList<>();String raw=getPreferences(0).getString("pinRecords","");if(!raw.isEmpty())out.addAll(Arrays.asList(raw.split("\\n")));return out;}
   private String joinLines(ArrayList<String> lines){StringBuilder b=new StringBuilder();for(String line:lines){if(b.length()>0)b.append((char)10);b.append(line.replace((char)10,' '));}return b.toString();}
-  private void sendLine(String value){try{if(socket==null||!socket.isConnected()){toast("Device is not connected");return;}OutputStream out=socket.getOutputStream();out.write((value+System.lineSeparator()).getBytes("UTF-8"));out.flush();}catch(Exception e){toast("Send failed: "+e.getMessage());}}
+  private void sendLine(String value){try{if(socket==null||!socket.isConnected()){toast("Device is not connected");return;}OutputStream out=socket.getOutputStream();out.write((value+System.lineSeparator()).getBytes("UTF-8"));out.flush();}catch(Exception e){toast(tr("Send failed: ")+e.getMessage());}}
 
   private void toast(String s){Toast.makeText(this,tr(s),Toast.LENGTH_SHORT).show();}
   private String tr(String s){String[] a=TRANSLATIONS.get(s);if(a==null)return s;int i=language.equals("fa")?1:language.equals("ar")?2:language.equals("ru")?3:language.equals("tr")?4:language.equals("de")?5:0;return a[i];}
@@ -551,6 +551,14 @@ public class MainActivity extends Activity {
     addT("SUMER • MAGNETOMETRIC SURVEY SYSTEM\nSingle-channel prototype • Android","SUMER • سامانه پیمایش مغناطیس‌سنجی\nنمونه تک‌کاناله • اندروید","SUMER • نظام المسح المغناطيسي\nنموذج أحادي القناة • Android","SUMER • Система магнитометрической съёмки\nОдноканальный прототип • Android","SUMER • Manyetometrik tarama sistemi\nTek kanallı prototip • Android","SUMER • Magnetometrisches Vermessungssystem\nEinkanal-Prototyp • Android");
     addT("Bluetooth search failed: ","جست‌وجوی بلوتوث ناموفق بود: ","فشل البحث عن Bluetooth: ","Не удалось выполнить поиск Bluetooth: ","Bluetooth araması başarısız: ","Bluetooth-Suche fehlgeschlagen: ");
     addT("The app needs at least four points for a 3D surface","برای سطح سه‌بعدی حداقل چهار نقطه لازم است","يحتاج التطبيق إلى أربع نقاط على الأقل لسطح ثلاثي الأبعاد","Для 3D-поверхности нужно не менее четырёх точек","3B yüzey için en az dört nokta gerekir","Für eine 3D-Oberfläche sind mindestens vier Punkte erforderlich");
+
+    addT("MAGNETOMETRIC SURVEY SYSTEM","سامانه پیمایش مغناطیس‌سنجی","نظام المسح المغناطيسي","Система магнитометрической съёмки","Manyetometrik tarama sistemi","Magnetometrisches Vermessungssystem");
+    addT("Theme","پوسته","السمة","Тема","Tema","Design");addT("CALIBRATING","در حال کالیبراسیون","جارٍ المعايرة","Калибровка","Kalibre ediliyor","Kalibrierung");addT("samples","نمونه","عينات","отсчётов","örnek","Messwerte");
+    addT("BASELINE %.1f  •  CURRENT Δ %+d  •  TONE %d Hz","خط پایه %.1f  •  مقدار فعلی Δ %+d  •  فرکانس صدا %d هرتز","خط الأساس %.1f  •  الحالي Δ %+d  •  النغمة %d هرتز","База %.1f  •  текущее Δ %+d  •  тон %d Гц","Referans %.1f  •  geçerli Δ %+d  •  ton %d Hz","Basis %.1f  •  aktuell Δ %+d  •  Ton %d Hz");
+    addT("Point ","نقطه ","نقطة ","Точка ","Nokta ","Punkt ");addT("VIEW 1","نمای ۱","العرض 1","Вид 1","Görünüm 1","Ansicht 1");addT("VIEW 2","نمای ۲","العرض 2","Вид 2","Görünüm 2","Ansicht 2");addT("VIEW 3","نمای ۳","العرض 3","Вид 3","Görünüm 3","Ansicht 3");
+    addT("A 3D surface needs at least a 2 × 2 measured area","برای سطح سه‌بعدی حداقل یک محدوده اندازه‌گیری‌شده ۲×۲ لازم است","يحتاج السطح ثلاثي الأبعاد إلى مساحة مقاسة لا تقل عن 2 × 2","Для 3D-поверхности нужна измеренная область не менее 2 × 2","3B yüzey için en az 2 × 2 ölçülmüş alan gerekir","Eine 3D-Oberfläche benötigt einen Messbereich von mindestens 2 × 2");
+    addT("MediaStore unavailable","فضای ذخیره‌سازی رسانه در دسترس نیست","خدمة MediaStore غير متاحة","MediaStore недоступен","MediaStore kullanılamıyor","MediaStore nicht verfügbar");addT("Export failed: ","خروجی گرفتن ناموفق بود: ","فشل التصدير: ","Ошибка экспорта: ","Dışa aktarma başarısız: ","Export fehlgeschlagen: ");addT("Send failed: ","ارسال ناموفق بود: ","فشل الإرسال: ","Ошибка отправки: ","Gönderim başarısız: ","Senden fehlgeschlagen: ");
+    addT("TX  ","ارسال  ","إرسال  ","ОТПР  ","GÖNDER  ","SENDEN  ");
 
   }
   @Override public void onRequestPermissionsResult(int r,String[] p,int[] g){super.onRequestPermissionsResult(r,p,g);if(r==BT_REQ&&g.length>=2&&g[0]==PackageManager.PERMISSION_GRANTED&&g[1]==PackageManager.PERMISSION_GRANTED)searchDevices();}
