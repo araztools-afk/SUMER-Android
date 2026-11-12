@@ -80,7 +80,7 @@ public class MainActivity extends Activity {
     root=col();root.setBackgroundColor(bg());setContentView(root);
     LinearLayout top=row();top.setPadding(dp(16),dp(9),dp(16),dp(9));
     brand=txt("SUMER",25,fg());brand.setTypeface(null,1);top.addView(brand,new LinearLayout.LayoutParams(0,dp(44),1));
-    TextView gear=txt("⚙",25,accent);gear.setGravity(Gravity.CENTER);gear.setOnClickListener(v->{tap();show("SETTINGS");});top.addView(gear,new LinearLayout.LayoutParams(dp(46),dp(44)));root.addView(top);
+    root.addView(top);
     status=txt("●  DEVICE DISCONNECTED     •     9600 BAUD",11,muted());status.setPadding(dp(16),dp(10),dp(16),dp(10));status.setBackground(shape(panel(),line()));LinearLayout.LayoutParams sl=new LinearLayout.LayoutParams(-1,dp(42));sl.setMargins(dp(14),0,dp(14),dp(10));root.addView(status,sl);status.setOnClickListener(v->{tap();show("DEVICE");});
     ScrollView scroll=new ScrollView(this);content=col();content.setPadding(dp(14),dp(4),dp(14),dp(18));scroll.addView(content);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
     bottom=row();bottom.setPadding(dp(8),dp(7),dp(8),dp(7));bottom.setBackgroundColor(panel());root.addView(bottom,new LinearLayout.LayoutParams(-1,dp(60)));
@@ -99,8 +99,8 @@ public class MainActivity extends Activity {
     content.addView(heading("MAGNETOMETRIC SURVEY"));
     TextView sub=txt("Single-channel acquisition workspace",12,muted());content.addView(sub);
     LinearLayout dev=row();TextView dt=txt("⌁   DEVICE CONNECTION",14,fg());dt.setTypeface(null,1);dev.addView(dt,new LinearLayout.LayoutParams(0,dp(54),1));TextView go=txt("CONNECT  ›",11,accent);dev.addView(go);dev.setPadding(dp(14),0,dp(14),0);dev.setBackground(shape(panel(),line()));dev.setOnClickListener(v->{tap();show("DEVICE");});LinearLayout.LayoutParams dlp=new LinearLayout.LayoutParams(-1,dp(54));dlp.topMargin=dp(18);dlp.bottomMargin=dp(18);content.addView(dev,dlp);
-    LinearLayout r1=row();r1.addView(tile("◉","LIVE","Real-time view","LIVE"),new LinearLayout.LayoutParams(0,dp(154),1));space(r1);r1.addView(tile("⌖","PIN","Point survey","PIN"),new LinearLayout.LayoutParams(0,dp(154),1));content.addView(r1);
-    LinearLayout r2=row();r2.addView(tile("▷","AUTOMATIC","Automatic scan","AUTOMATIC"),new LinearLayout.LayoutParams(0,dp(154),1));space(r2);r2.addView(tile("✥","MANUAL","Manual survey","MANUAL"),new LinearLayout.LayoutParams(0,dp(154),1));content.addView(r2);
+    LinearLayout r1=row();r1.addView(tile("◉","LIVE","Real-time view","LIVE"),new LinearLayout.LayoutParams(0,dp(154),1));space(r1);r1.addView(tile("⌖","PIN","Point survey","PIN"),new LinearLayout.LayoutParams(0,dp(154),1));LinearLayout.LayoutParams r1p=new LinearLayout.LayoutParams(-1,-2);r1p.bottomMargin=dp(10);content.addView(r1,r1p);
+    LinearLayout r2=row();r2.addView(tile("▷","AUTOMATIC","Automatic scan","AUTOMATIC"),new LinearLayout.LayoutParams(0,dp(154),1));space(r2);r2.addView(tile("✥","MANUAL","Manual survey","MANUAL"),new LinearLayout.LayoutParams(0,dp(154),1));content.addView(r2,new LinearLayout.LayoutParams(-1,-2));
     LinearLayout set=row();TextView st=txt("⚙   SETTINGS",14,fg());st.setTypeface(null,1);set.addView(st);set.setPadding(dp(16),0,dp(16),0);set.setBackground(shape(panel(),line()));set.setOnClickListener(v->{tap();show("SETTINGS");});LinearLayout.LayoutParams setp=new LinearLayout.LayoutParams(-1,dp(48));setp.topMargin=dp(18);content.addView(set,setp);
     TextView term=txt("OPEN DATA TERMINAL  →",11,accent);term.setGravity(Gravity.CENTER);term.setPadding(0,dp(16),0,dp(8));term.setOnClickListener(v->{tap();show("TERMINAL");});content.addView(term);
   }
@@ -136,7 +136,7 @@ public class MainActivity extends Activity {
     content.addView(heading("SCAN GRID"));
     LinearLayout grid=row();EditText rowsField=numberField("Rows",scanRows);EditText colsField=numberField("Columns",scanCols);
     grid.addView(rowsField,new LinearLayout.LayoutParams(0,dp(54),1));View gap=new View(this);grid.addView(gap,new LinearLayout.LayoutParams(dp(10),1));grid.addView(colsField,new LinearLayout.LayoutParams(0,dp(54),1));content.addView(grid);
-    Button save=btn("APPLY ROWS / COLUMNS");save.setOnClickListener(v->{tap();try{int r=Integer.parseInt(rowsField.getText().toString().trim()),c=Integer.parseInt(colsField.getText().toString().trim());if(r<1||r>50||c<1||c>50||r*c>2500)throw new Exception();scanRows=r;scanCols=c;persistSettings();toast("Grid set to "+r+" rows × "+c+" columns");}catch(Exception e){toast("Rows and columns must be 1–50");}});content.addView(save);
+    Button save=btn("APPLY ROWS / COLUMNS");save.setOnClickListener(v->{tap();try{int r=Integer.parseInt(rowsField.getText().toString().trim()),c=Integer.parseInt(colsField.getText().toString().trim());if(r<1||r>50||c<1||c>50||r*c>2500)throw new Exception();scanRows=r;scanCols=c;persistSettings();toast("Grid set to "+r+" rows × "+c+" columns");show(tab);}catch(Exception e){toast("Rows and columns must be 1–50");}});content.addView(save);
     TextView dimensions=txt("ACTIVE GRID: "+scanRows+" × "+scanCols+"  •  "+(scanRows*scanCols)+" CELLS",11,accent);dimensions.setPadding(dp(4),dp(8),dp(4),dp(10));content.addView(dimensions);
   }
   private void scanTestButton(){
@@ -180,16 +180,34 @@ public class MainActivity extends Activity {
     int a=stops[k],b=stops[k+1];int r=(int)(((a>>16)&255)*(1-u)+((b>>16)&255)*u),g=(int)(((a>>8)&255)*(1-u)+((b>>8)&255)*u),bl=(int)((a&255)*(1-u)+(b&255)*u);
     return 0xff000000|(r<<16)|(g<<8)|bl;
   }
+  private ArrayList<Integer> scanDisplayValues(){return new ArrayList<>(matrixScanActive?activeScan:lastScan);}
   private void scanVisualization(){
-    if(lastScan.isEmpty()){TextView waiting=txt("SCAN MAP / GRAPH APPEAR AFTER START → DATA → FINISH",10,muted());waiting.setPadding(dp(4),dp(12),dp(4),dp(12));content.addView(waiting);return;}
-    int lo=5000,hi=0;for(int v:lastScan){lo=Math.min(lo,v);hi=Math.max(hi,v);}
-    content.addView(heading("SCAN COLOUR MAP • "+lastScan.size()+" VALUES"));
-    content.addView(txt("MIN "+lo+"   MAX "+hi+"   GRID "+scanRows+" × "+scanCols+"   •   ZIGZAG FROM BOTTOM-LEFT",11,muted()));
-    final int low=lo,high=hi;
-    View map=new View(this){protected void onMeasure(int ws,int hs){int width=MeasureSpec.getSize(ws);float cell=Math.min(width/(float)scanCols,dp(500)/(float)scanRows);setMeasuredDimension(width,(int)(cell*scanRows));}protected void onDraw(Canvas canvas){super.onDraw(canvas);float cell=Math.min(getWidth()/(float)scanCols,dp(500)/(float)scanRows);float cw=cell,ch=cell,offset=(getWidth()-cw*scanCols)/2;Paint p=new Paint(3);p.setTextAlign(Paint.Align.CENTER);int count=Math.min(lastScan.size(),scanRows*scanCols);for(int i=0;i<count;i++){int[] rc=scanCell(i);float x=offset+rc[1]*cw,y=rc[0]*ch;p.setColor(scanColor(lastScan.get(i),low,high));canvas.drawRect(x+dp(2),y+dp(2),x+cw-dp(2),y+ch-dp(2),p);p.setColor(0x99ffffff);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(dp(1));canvas.drawRect(x+dp(2),y+dp(2),x+cw-dp(2),y+ch-dp(2),p);p.setStyle(Paint.Style.FILL);p.setColor(0xffffffff);p.setTextSize(dp(9));canvas.drawText("#"+(i+1),x+cw/2,y+ch*.42f,p);p.setTextSize(dp(13));canvas.drawText(""+lastScan.get(i),x+cw/2,y+ch*.72f,p);}}};
-    map.setBackground(shape(panel(),line()));LinearLayout.LayoutParams mp=new LinearLayout.LayoutParams(-1,-2);mp.bottomMargin=dp(10);content.addView(map,mp);
+    ArrayList<Integer> values=scanDisplayValues();
+    int lo=5000,hi=0;for(int v:values){lo=Math.min(lo,v);hi=Math.max(hi,v);}
+    if(values.isEmpty()){lo=0;hi=5000;}
+    content.addView(heading("SCAN COLOUR MAP • "+values.size()+" / "+(scanRows*scanCols)+" VALUES"));
+    content.addView(txt("MIN "+(values.isEmpty()?"—":lo)+"   MAX "+(values.isEmpty()?"—":hi)+"   GRID "+scanRows+" × "+scanCols+"   •   ZIGZAG FROM BOTTOM-LEFT",11,muted()));
+    final ArrayList<Integer> data=values;final int low=lo,high=hi;
+    View map=new View(this){
+      protected void onMeasure(int ws,int hs){int width=MeasureSpec.getSize(ws);float cell=Math.min(width/(float)scanCols,dp(500)/(float)scanRows);setMeasuredDimension(width,(int)(cell*scanRows));}
+      protected void onDraw(Canvas canvas){
+        super.onDraw(canvas);float cell=Math.min(getWidth()/(float)scanCols,dp(500)/(float)scanRows);float offset=(getWidth()-cell*scanCols)/2;
+        Paint p=new Paint(3);p.setTextAlign(Paint.Align.CENTER);
+        for(int i=0;i<scanRows*scanCols;i++){
+          int[] rc=scanCell(i);float x=offset+rc[1]*cell,y=rc[0]*cell;
+          if(i<data.size()){p.setColor(scanColor(data.get(i),low,high));canvas.drawRect(x,y,x+cell,y+cell,p);}
+          p.setColor(0x887f929f);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(dp(1));canvas.drawRect(x+dp(.5f),y+dp(.5f),x+cell-dp(.5f),y+cell-dp(.5f),p);p.setStyle(Paint.Style.FILL);
+          if(i<data.size()){
+            p.setColor(0xffffffff);p.setTextSize(dp(9));canvas.drawText("#"+(i+1),x+cell/2,y+cell*.42f,p);
+            p.setTextSize(dp(13));canvas.drawText(""+data.get(i),x+cell/2,y+cell*.72f,p);
+          }
+        }
+      }
+    };
+    map.setBackgroundColor(panel());LinearLayout.LayoutParams mp=new LinearLayout.LayoutParams(-1,-2);mp.bottomMargin=dp(10);content.addView(map,mp);
+    if(values.isEmpty())return;
     content.addView(heading("SCAN GRAPH"));
-    View chart=new View(this){protected void onDraw(Canvas canvas){super.onDraw(canvas);float w=getWidth(),h=getHeight();if(w<=0||h<=0)return;Paint p=new Paint(3);p.setColor(line());p.setStrokeWidth(dp(1));for(int i=1;i<4;i++)canvas.drawLine(0,h*i/4,w,h*i/4,p);p.setColor(accent);p.setStrokeWidth(dp(2));p.setStyle(Paint.Style.STROKE);Path path=new Path();for(int i=0;i<lastScan.size();i++){float x=lastScan.size()==1?w/2:(w-8)*i/(lastScan.size()-1)+4;float y=h-4-(lastScan.get(i)/5000f)*(h-8);if(i==0)path.moveTo(x,y);else path.lineTo(x,y);}canvas.drawPath(path,p);p.setStyle(Paint.Style.FILL);}};
+    View chart=new View(this){protected void onDraw(Canvas canvas){super.onDraw(canvas);float w=getWidth(),h=getHeight();if(w<=0||h<=0)return;Paint p=new Paint(3);p.setColor(line());p.setStrokeWidth(dp(1));for(int i=1;i<4;i++)canvas.drawLine(0,h*i/4,w,h*i/4,p);p.setColor(accent);p.setStrokeWidth(dp(2));p.setStyle(Paint.Style.STROKE);Path path=new Path();for(int i=0;i<data.size();i++){float x=data.size()==1?w/2:(w-8)*i/(data.size()-1)+4;float y=h-4-(data.get(i)/5000f)*(h-8);if(i==0)path.moveTo(x,y);else path.lineTo(x,y);}canvas.drawPath(path,p);p.setStyle(Paint.Style.FILL);}};
     chart.setBackground(shape(panel(),line()));LinearLayout.LayoutParams chartP=new LinearLayout.LayoutParams(-1,dp(150));chartP.bottomMargin=dp(14);content.addView(chart,chartP);
   }
   private void settings(){
@@ -339,12 +357,67 @@ public class MainActivity extends Activity {
   }
 
   private boolean refreshPending=false;
-  private void requestRefresh(){if(refreshPending)return;refreshPending=true;handler.postDelayed(()->{refreshPending=false;if(tab.equals("LIVE")||tab.equals("MANUAL")||tab.equals("AUTOMATIC")||tab.equals("PIN"))show(tab);},120);}
+  private void requestRefresh(){if(refreshPending)return;refreshPending=true;handler.postDelayed(()->{refreshPending=false;if(tab.equals("LIVE")||tab.equals("MANUAL")||tab.equals("AUTOMATIC")||tab.equals("PIN"))show(tab);},60);}
   private void finishMatrixScan(){matrixScanActive=false;autoRunning=false;lastScan.clear();lastScan.addAll(activeScan);activeScan.clear();if(!lastScan.isEmpty())saveScanToGallery();if(!tab.equals("LIVE"))logs.add(0,"MATRIX SCAN END • "+lastScan.size()+" values");}
   private int[] scanCell(int index){int col=index/scanRows,offset=index%scanRows;int row=(col%2==0)?scanRows-1-offset:offset;return new int[]{row,col};}
   private void galleryButton(){Button g=btn("OPEN SAVED SCAN GALLERY");g.setOnClickListener(v->{tap();show("GALLERY");});content.addView(g);}
-  private void saveScanToGallery(){try{File dir=new File(getFilesDir(),"scans");if(!dir.exists())dir.mkdirs();String stamp=new java.text.SimpleDateFormat("yyyyMMdd_HHmmss",Locale.US).format(new Date());File png=new File(dir,"SUMER_"+stamp+".png");Bitmap bitmap=renderScanBitmap(lastScan,scanRows,scanCols);try(FileOutputStream out=new FileOutputStream(png)){bitmap.compress(Bitmap.CompressFormat.PNG,100,out);}bitmap.recycle();File csv=new File(dir,"SUMER_"+stamp+".csv");try(FileWriter w=new FileWriter(csv)){w.write("row,column,block,value"+System.lineSeparator());for(int i=0;i<lastScan.size();i++){int[] rc=scanCell(i);w.write((rc[0]+1)+","+(rc[1]+1)+","+(i+1)+","+lastScan.get(i)+System.lineSeparator());}}toast("Scan saved to SUMER gallery");}catch(Exception e){toast("Could not save scan: "+e.getMessage());}}
-  private Bitmap renderScanBitmap(ArrayList<Integer> values,int rows,int cols){int cell=Math.max(40,Math.min(180,2048/Math.max(rows,cols)));Bitmap b=Bitmap.createBitmap(cols*cell,rows*cell,Bitmap.Config.ARGB_8888);Canvas c=new Canvas(b);c.drawColor(0xff202832);Paint p=new Paint(3);p.setTextAlign(Paint.Align.CENTER);int lo=5000,hi=0;for(int value:values){lo=Math.min(lo,value);hi=Math.max(hi,value);}for(int i=0;i<values.size()&&i<rows*cols;i++){int[] rc=scanCell(i);float x=rc[1]*cell,y=rc[0]*cell;p.setColor(scanColor(values.get(i),lo,hi));c.drawRect(x+2,y+2,x+cell-2,y+cell-2,p);p.setColor(0x99ffffff);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(2);c.drawRect(x+2,y+2,x+cell-2,y+cell-2,p);p.setStyle(Paint.Style.FILL);p.setColor(0xffffffff);p.setTextSize(Math.max(10,cell*.14f));c.drawText("BLOCK "+(i+1),x+cell/2,y+cell/2-cell*.05f,p);p.setTextSize(Math.max(12,cell*.22f));c.drawText(""+values.get(i),x+cell/2,y+cell/2+cell*.22f,p);}return b;}
+  private void saveScanToGallery(){
+    try{
+      File dir=new File(getFilesDir(),"scans");if(!dir.exists())dir.mkdirs();
+      String stamp=new java.text.SimpleDateFormat("yyyyMMdd_HHmmss",Locale.US).format(new Date());
+      String[] suffix={"_01_HOMOGENEOUS","_02_GRID","_03_LABELS","_04_3D_THREE_VIEWS"};
+      for(int mode=0;mode<4;mode++){
+        Bitmap bitmap=mode==3?renderPerspectiveScan(lastScan,scanRows,scanCols):renderFlatScan(lastScan,scanRows,scanCols,mode);
+        File png=new File(dir,"SUMER_"+stamp+suffix[mode]+".png");
+        try(FileOutputStream out=new FileOutputStream(png)){bitmap.compress(Bitmap.CompressFormat.PNG,100,out);}
+        bitmap.recycle();
+      }
+      File csv=new File(dir,"SUMER_"+stamp+".csv");
+      try(FileWriter w=new FileWriter(csv)){w.write("row,column,block,value"+System.lineSeparator());for(int i=0;i<lastScan.size();i++){int[] rc=scanCell(i);w.write((rc[0]+1)+","+(rc[1]+1)+","+(i+1)+","+lastScan.get(i)+System.lineSeparator());}}
+      toast("4 scan images and CSV saved to SUMER gallery");
+    }catch(Exception e){toast("Could not save scan: "+e.getMessage());}
+  }
+  private int[] scanRange(ArrayList<Integer> values){int lo=5000,hi=0;for(int v:values){lo=Math.min(lo,v);hi=Math.max(hi,v);}return new int[]{lo,hi};}
+  private Bitmap renderFlatScan(ArrayList<Integer> values,int rows,int cols,int mode){
+    int cell=Math.max(48,Math.min(180,2048/Math.max(rows,cols)));
+    Bitmap b=Bitmap.createBitmap(cols*cell,rows*cell,Bitmap.Config.ARGB_8888);Canvas c=new Canvas(b);c.drawColor(0xff202832);
+    int[] range=scanRange(values);Paint p=new Paint(3);p.setTextAlign(Paint.Align.CENTER);
+    for(int i=0;i<values.size()&&i<rows*cols;i++){
+      int[] rc=scanCell(i);float x=rc[1]*cell,y=rc[0]*cell;
+      p.setColor(scanColor(values.get(i),range[0],range[1]));c.drawRect(x,y,x+cell,y+cell,p);
+      if(mode>=1){p.setColor(0x887f929f);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(mode==1?1.2f:1.5f);c.drawRect(x+.5f,y+.5f,x+cell-.5f,y+cell-.5f,p);p.setStyle(Paint.Style.FILL);}
+      if(mode==2){p.setColor(0xffffffff);p.setTextSize(Math.max(10,cell*.13f));c.drawText("#"+(i+1),x+cell/2,y+cell*.43f,p);p.setTextSize(Math.max(12,cell*.2f));c.drawText(""+values.get(i),x+cell/2,y+cell*.72f,p);}
+    }
+    return b;
+  }
+  private void drawSurfaceTriangle(Canvas canvas,Paint paint,float[] a,float[] b,float[] c,int color){
+    paint.setColor(color);paint.setStyle(Paint.Style.FILL);Path path=new Path();path.moveTo(a[0],a[1]);path.lineTo(b[0],b[1]);path.lineTo(c[0],c[1]);path.close();canvas.drawPath(path,paint);
+  }
+  private float[] projectPoint(float x,float y,float z,float angle,float cx,float baseY,float scale,float heightScale){
+    float rx=(float)(x*Math.cos(angle)-y*Math.sin(angle));float ry=(float)(x*Math.sin(angle)+y*Math.cos(angle));
+    return new float[]{cx+(rx-ry)*scale*.72f,baseY+(rx+ry)*scale*.34f-z*heightScale};
+  }
+  private void drawPerspectiveView(Canvas canvas,ArrayList<Integer> values,int rows,int cols,float left,float top,float width,float height,float angle,int low,int high){
+    float extent=Math.max(rows,cols);float scale=Math.min(width/(extent*1.55f),height/(extent*.9f));float cx=left+width/2,baseY=top+height*.76f;
+    float hScale=height*.42f;Paint p=new Paint(3);
+    for(int r=0;r<rows-1;r++)for(int col=0;col<cols-1;col++){
+      int i00=findScanIndex(r,col,rows),i10=findScanIndex(r+1,col,rows),i01=findScanIndex(r,col+1,rows),i11=findScanIndex(r+1,col+1,rows);
+      float z00=scanValueAt(values,i00)/5000f,z10=scanValueAt(values,i10)/5000f,z01=scanValueAt(values,i01)/5000f,z11=scanValueAt(values,i11)/5000f;
+      float[] a=projectPoint(col,r,z00,angle,cx,baseY,scale,hScale),bb=projectPoint(col,r+1,z10,angle,cx,baseY,scale,hScale),cc=projectPoint(col+1,r,z01,angle,cx,baseY,scale,hScale),dd=projectPoint(col+1,r+1,z11,angle,cx,baseY,scale,hScale);
+      int v=(scanValueAt(values,i00)+scanValueAt(values,i10)+scanValueAt(values,i01)+scanValueAt(values,i11))/4;int color=scanColor(v,low,high);
+      drawSurfaceTriangle(canvas,p,a,bb,cc,color);drawSurfaceTriangle(canvas,p,bb,dd,cc,color);
+      p.setColor(0x668899aa);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(1);Path outline=new Path();outline.moveTo(a[0],a[1]);outline.lineTo(bb[0],bb[1]);outline.lineTo(dd[0],dd[1]);outline.lineTo(cc[0],cc[1]);outline.close();canvas.drawPath(outline,p);p.setStyle(Paint.Style.FILL);
+    }
+  }
+  private int findScanIndex(int row,int col,int rows){for(int i=0;i<rows*50;i++){int[] rc=scanCell(i);if(rc[0]==row&&rc[1]==col)return i;}return -1;}
+  private int scanValueAt(ArrayList<Integer> values,int index){return index>=0&&index<values.size()?values.get(index):0;}
+  private Bitmap renderPerspectiveScan(ArrayList<Integer> values,int rows,int cols){
+    int panelW=700,panelH=540;Bitmap b=Bitmap.createBitmap(panelW*3,panelH,Bitmap.Config.ARGB_8888);Canvas c=new Canvas(b);c.drawColor(0xff202832);
+    int[] range=scanRange(values);Paint p=new Paint(3);p.setColor(0xfff2f7ff);p.setTextSize(28);p.setTextAlign(Paint.Align.CENTER);
+    String[] names={"VIEW 1","VIEW 2","VIEW 3"};double[] angles={0.35,0.78,1.2};
+    for(int i=0;i<3;i++){float left=i*panelW;c.drawText(names[i],left+panelW/2,38,p);drawPerspectiveView(c,values,rows,cols,left+10,50,panelW-20,panelH-60,(float)angles[i],range[0],range[1]);if(i>0){p.setColor(0xff65717d);p.setStrokeWidth(2);c.drawLine(left,0,left,panelH,p);p.setColor(0xfff2f7ff);}}
+    return b;
+  }
   private void gallery(){content.addView(heading("SAVED SCAN GALLERY"));content.addView(txt("Completed matrix scans are saved on this phone. Select EXPORT to copy an image to the device gallery.",12,muted()));File dir=new File(getFilesDir(),"scans");File[] files=dir.listFiles((d,n)->n.endsWith(".png"));galleryFiles.clear();if(files!=null){Arrays.sort(files,(a,b)->Long.compare(b.lastModified(),a.lastModified()));galleryFiles.addAll(Arrays.asList(files));}if(galleryFiles.isEmpty()){content.addView(txt("No saved scans yet.",14,muted()));return;}for(File f:galleryFiles){LinearLayout box=col();box.setPadding(dp(10),dp(10),dp(10),dp(10));box.setBackground(shape(panel(),line()));TextView name=txt(f.getName(),12,fg());box.addView(name);ImageView image=new ImageView(this);Bitmap bm=BitmapFactory.decodeFile(f.getAbsolutePath());image.setImageBitmap(bm);image.setAdjustViewBounds(true);box.addView(image,new LinearLayout.LayoutParams(-1,dp(210)));Button export=btn("EXPORT IMAGE TO PHONE GALLERY");export.setOnClickListener(v->{tap();exportImage(f);});box.addView(export);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.bottomMargin=dp(12);content.addView(box,p);}}
   private void exportImage(File file){try{ContentValues values=new ContentValues();values.put(MediaStore.Images.Media.DISPLAY_NAME,file.getName());values.put(MediaStore.Images.Media.MIME_TYPE,"image/png");if(Build.VERSION.SDK_INT>=29)values.put(MediaStore.Images.Media.RELATIVE_PATH,Environment.DIRECTORY_PICTURES+"/SUMER");Uri uri=getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI,values);if(uri==null)throw new IOException("MediaStore unavailable");try(InputStream in=new FileInputStream(file);OutputStream out=getContentResolver().openOutputStream(uri)){byte[] buf=new byte[8192];int n;while((n=in.read(buf))>0)out.write(buf,0,n);}toast("Image exported to Pictures/SUMER");}catch(Exception e){toast("Export failed: "+e.getMessage());}}
   private ArrayList<String> pinRecords(){ArrayList<String> out=new ArrayList<>();String raw=getPreferences(0).getString("pinRecords","");if(!raw.isEmpty())out.addAll(Arrays.asList(raw.split("\\n")));return out;}
