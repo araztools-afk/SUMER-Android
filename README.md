@@ -1,45 +1,59 @@
 # SUMER Android
 
-SUMER is a magnetometric geological survey application prototype. It is **not** a conventional metal-detector app.
+SUMER is a magnetometric survey application. It is not a conventional metal-detector app.
 
-## Current UI prototype: SUMER1
+## SUMER2 software scope
 
-- Official app label: SUMER
-- Temporary vector launcher icon
-- First-launch serial-registration screen
-- Tile-based home screen: LIVE / PIN / AUTOMATIC / MANUAL
-- Wide Device Connection strip above the tiles
-- Wide Settings strip below the tiles
-- Single numeric input stream (0–5000)
-- Live screen replaces its single current visual block; it does not build a live image history
-- Manual value entry, Automatic session controls, and PIN point capture
-- Settings: dark/light theme, accent colour, manual alert output, touch feedback, baud-rate selection
-- Bluetooth Classic / SPP connection to paired devices
-- Data terminal and recent-value log
+This release candidate consolidates the software requirements from the SUMER design discussions. Hardware, sensor electronics, circuit design and firmware are outside this application-only milestone.
 
-## Registration limitation
+### Main interface
+- Brand: SUMER — MAGNETOMETRIC SURVEY SYSTEM.
+- Home tiles: row 1 = LIVE / PIN; row 2 = AUTOMATIC / MANUAL.
+- Device Connection strip above the tiles and Settings strip below them.
+- Dark silver and light themes, plus selectable accent colours.
+- Touch feedback can be Sound, Vibration, Both or None.
 
-The current prototype checks the serial string format and stores successful activation locally. It does **not** yet verify a unique license against a secure license service or signed offline license database. Do not use this prototype gate as production-grade copy protection. A secure per-user/per-install license issuer and verifier must be implemented before commercial release.
+### LIVE
+- Shows only the latest coloured measurement block.
+- Each new reading replaces the previous block.
+- CURRENT, MIN and MAX are displayed.
+- No live trend chart and no live sample/image history are created.
+- Manual test-value entry is available.
 
-## Connection and data limitations
+### PIN
+- Point name/ID and manual test input.
+- First two seconds of received values establish the baseline.
+- A horizontal sine trace responds to deviations from baseline.
+- Square-wave audio tone is mapped to 1–400 Hz as the value moves below/above baseline.
+- Saved point records remain on the phone.
 
-- The current app is configured for one numeric input channel.
-- Incoming values are expected as text lines containing integers from 0 to 5000.
-- A standalone `a` line is retained as a scan marker.
-- Baud rate is a user setting for matching the transmitter configuration; selecting it in the app does not remotely change the Bluetooth module's UART speed.
-- Automatic mode does not invent sample values; it displays actual incoming values.
-- PIN points are session-local in this prototype. Persistent project storage is a later milestone.
+### MANUAL and AUTOMATIC
+- Configurable rows and columns; default grid is 4 × 3, valid range 1–50 per dimension, maximum 2,500 cells.
+- Accepted scan path starts at bottom-left and proceeds vertically, alternating direction column by column.
+- Matrix scan begins/ends on a standalone `a` line. Manual test-scan start/finish controls are also available.
+- Manual numeric test input (0–5000) uses the same processing path as received values.
+- Heatmap cells are equal-sized, bordered and labelled with block number and value.
+- A scan graph is shown after completion.
+- Matrix alerts use a 200 ms signal for ordinary samples and 500 ms for the last cell in each row.
+- Completed scans are saved as PNG and CSV in the app's SUMER gallery. PNG images can be exported to Pictures/SUMER.
 
-## Build APK in GitHub
+### Bluetooth and terminal
+- Bluetooth Classic / SPP connection to paired devices such as HC-05.
+- Last selected device can be reconnected automatically when enabled.
+- The terminal shows received lines and can send a text command/value back over SPP.
+- Input protocol currently supported by the app: one integer per line, 0–5000; standalone `a` toggles matrix scan start/end.
+- Baud selection is a saved project setting only. It does not remotely change the HC-05 UART setting.
 
-1. Open the **Actions** tab.
-2. Select **Build SUMER Android APK**.
-3. Wait for the workflow to finish successfully.
-4. Open the completed run and download the `SUMER-debug-apk` artifact.
-5. Extract the ZIP and install `app-debug.apk`.
+### Registration
+- First-run SERIAL REGISTRATION screen.
+- The current test build accepts the previously specified code `13651365` and remembers activation locally.
+- This is local prototype gating, not production-grade license security or server verification.
 
-The workflow uses JDK 17, Gradle 8.9 and Android Gradle Plugin 8.7.3. The APK is a debug build.
+## Build and compatibility
+- Application ID remains `com.araztools.sumer.livepreview` so SUMER2 updates the installed SUMER preview rather than creating a different package.
+- Stable debug signing key is retained for in-place updates.
+- Android minimum SDK 23; target SDK 28; Java 17; Gradle 8.9.
+- GitHub Actions validates APK build, package metadata, alignment and signature.
 
-## Install on Android
-
-The preview uses application ID `com.araztools.sumer.livepreview` so it can be installed alongside the earlier S1 package. Android 6.0+ is the configured minimum. Pair the Bluetooth device in Android settings before connecting from SUMER.
+## Verification boundary
+A successful CI build confirms compilation, APK packaging, alignment and signing. It does not confirm real-world Bluetooth behaviour, hardware measurements, audio quality on every device, or sensor accuracy. Those require on-device testing with the actual scanner.
