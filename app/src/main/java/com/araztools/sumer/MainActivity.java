@@ -59,7 +59,7 @@ public class MainActivity extends Activity {
     LinearLayout page=col();page.setGravity(Gravity.CENTER);page.setPadding(dp(28),dp(24),dp(28),dp(24));page.setBackgroundColor(bg());setContentView(page);
     TextView logo=txt("SUMER",42,fg());logo.setGravity(Gravity.CENTER);logo.setTypeface(null,1);page.addView(logo);
     TextView sub=txt("MAGNETOMETRIC SURVEY SYSTEM",12,accent);sub.setGravity(Gravity.CENTER);sub.setLetterSpacing(.13f);page.addView(sub);
-    TextView shield=txt("◈",68,accent);shield.setGravity(Gravity.CENTER);LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-1,dp(125));sp.topMargin=dp(28);page.addView(shield,sp);
+    ImageView shield=new ImageView(this);shield.setImageResource(R.drawable.ic_sumer);shield.setScaleType(ImageView.ScaleType.FIT_CENTER);LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-1,dp(125));sp.topMargin=dp(22);sp.bottomMargin=dp(8);page.addView(shield,sp);
     TextView title=txt("SERIAL REGISTRATION",19,fg());title.setGravity(Gravity.CENTER);title.setTypeface(null,1);page.addView(title);
     TextView hint=txt("Enter your personal activation code to unlock SUMER.",14,muted());hint.setGravity(Gravity.CENTER);hint.setPadding(0,dp(10),0,dp(22));page.addView(hint);
     EditText input=new EditText(this);input.setSingleLine(true);input.setTextColor(fg());input.setHintTextColor(muted());input.setHint("Enter 8-digit serial number");input.setBackground(shape(panel(),line()));pad(input,14);page.addView(input,new LinearLayout.LayoutParams(-1,dp(58)));
