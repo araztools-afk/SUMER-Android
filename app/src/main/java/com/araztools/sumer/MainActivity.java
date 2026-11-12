@@ -109,7 +109,7 @@ public class MainActivity extends Activity {
   private void manual(){
     content.addView(heading("MANUAL SURVEY"));
     content.addView(txt("Manual point-by-point acquisition and test input.",12,muted()));
-    stats();scanControls();testDataInput("MANUAL TEST DATA INPUT");
+    stats();scanControls();scanTestButton();testDataInput("MANUAL TEST DATA INPUT");
     scanVisualization();
     content.addView(heading("RECENT VALUES"));
     for(Integer n:samples){TextView t=txt("●     "+n,14,fg());t.setPadding(dp(12),dp(10),dp(12),dp(10));card(t);}
@@ -121,6 +121,10 @@ public class MainActivity extends Activity {
     Button save=btn("APPLY ROWS / COLUMNS");save.setOnClickListener(v->{tap();try{int r=Integer.parseInt(rowsField.getText().toString().trim()),c=Integer.parseInt(colsField.getText().toString().trim());if(r<1||r>50||c<1||c>50||r*c>2500)throw new Exception();scanRows=r;scanCols=c;persistSettings();toast("Grid set to "+r+" rows × "+c+" columns");}catch(Exception e){toast("Rows and columns must be 1–50");}});content.addView(save);
     TextView dimensions=txt("ACTIVE GRID: "+scanRows+" × "+scanCols+"  •  "+(scanRows*scanCols)+" CELLS",11,accent);dimensions.setPadding(dp(4),dp(8),dp(4),dp(10));content.addView(dimensions);
   }
+  private void scanTestButton(){
+    Button test=btn(matrixScanActive?"FINISH TEST SCAN  •  "+activeScan.size()+" VALUES":"START TEST SCAN");
+    test.setOnClickListener(v->{tap();if(matrixScanActive){matrixScanActive=false;lastScan.clear();lastScan.addAll(activeScan);activeScan.clear();}else{matrixScanActive=true;activeScan.clear();}show(tab);});content.addView(test);
+  }
   private EditText numberField(String hint,int value){EditText e=new EditText(this);e.setSingleLine(true);e.setInputType(2);e.setText(""+value);e.setHint(hint);e.setTextColor(fg());e.setHintTextColor(muted());e.setBackground(shape(panel(),line()));pad(e,12);return e;}
   private void testDataInput(String title){
     content.addView(heading(title));LinearLayout panelBox=col();panelBox.setPadding(dp(12),dp(10),dp(12),dp(12));panelBox.setBackground(shape(panel(),line()));
@@ -130,7 +134,7 @@ public class MainActivity extends Activity {
     LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(-1,dp(48));bp.topMargin=dp(8);panelBox.addView(inject,bp);card(panelBox);
   }
   private void automatic(){
-    content.addView(heading("AUTOMATIC SURVEY"));content.addView(txt("Automatic acquisition with a configurable scan grid.",12,muted()));stats();scanControls();
+    content.addView(heading("AUTOMATIC SURVEY"));content.addView(txt("Automatic acquisition with a configurable scan grid.",12,muted()));stats();scanControls();scanTestButton();
     TextView state=txt(autoRunning?"●  ACQUISITION ACTIVE":"○  READY",17,autoRunning?0xff20c997:muted());state.setGravity(Gravity.CENTER);state.setBackground(shape(panel(),line()));
     LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,dp(72));p.topMargin=dp(12);content.addView(state,p);
     Button b=btn(autoRunning?"STOP SESSION":"START SESSION");b.setOnClickListener(v->{tap();autoRunning=!autoRunning;show("AUTOMATIC");});content.addView(b);
