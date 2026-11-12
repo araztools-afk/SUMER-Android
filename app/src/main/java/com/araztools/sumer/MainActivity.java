@@ -101,7 +101,7 @@ public class MainActivity extends Activity {
     content.addView(heading("SIGNAL TREND"));card(new Graph());
     Button pause=btn("CLEAR LIVE MIN / MAX");pause.setOnClickListener(v->{tap();min=5001;max=-1;show("LIVE");});content.addView(pause);
   }
-  private class Graph extends View{Paint p=new Paint(3);Graph(){super(MainActivity.this);setBackground(shape(panel(),line()));}protected void onDraw(Canvas c){super.onDraw(c);float w=getWidth(),h=getHeight();p.setColor(line());p.setStrokeWidth(1);for(int i=1;i<5;i++)c.drawLine(0,h*i/5,w,h*i/5,p);if(samples.size()<2)return;p.setColor(accent);p.setStrokeWidth(dp(2));float x0=0,y0=0;int i=0,n=samples.size();for(int v:samples){float x=(float)i++/(n-1)*w,y=h-(v/5000f)*h;if(i>1)c.drawLine(x0,y0,x,y,p);x0=x;y0=y;}}}
+  private class Graph extends View{Paint p=new Paint(3);Graph(){super(MainActivity.this);setBackground(shape(panel(),line()));}protected void onMeasure(int w,int h){setMeasuredDimension(MeasureSpec.getSize(w),dp(190));}protected void onDraw(Canvas c){super.onDraw(c);float w=getWidth(),h=getHeight();p.setColor(line());p.setStrokeWidth(1);for(int i=1;i<5;i++)c.drawLine(0,h*i/5,w,h*i/5,p);if(samples.size()<2)return;p.setColor(accent);p.setStrokeWidth(dp(2));float x0=0,y0=0;int i=0,n=samples.size();for(int v:samples){float x=(float)i++/(n-1)*w,y=h-(v/5000f)*h;if(i>1)c.drawLine(x0,y0,x,y,p);x0=x;y0=y;}}}
   private void manual(){
     content.addView(heading("MANUAL SURVEY"));content.addView(txt("Enter a single measurement or use the connected stream.",12,muted()));stats();
     EditText field=new EditText(this);field.setSingleLine(true);field.setInputType(2);field.setHint("Value 0–5000");field.setTextColor(fg());field.setHintTextColor(muted());field.setBackground(shape(panel(),line()));pad(field,14);LinearLayout.LayoutParams fp=new LinearLayout.LayoutParams(-1,dp(58));fp.topMargin=dp(18);content.addView(field,fp);
@@ -123,7 +123,7 @@ public class MainActivity extends Activity {
   private void settings(){
     content.addView(heading("SETTINGS"));content.addView(label("APPEARANCE"));
     addChoice("Theme",new String[]{"Dark","Light"},dark?0:1,i->{dark=i==0;shell();});
-    addChoice("Accent colour",new String[]{"Ice blue","Violet","Emerald","Amber","Rose"},Arrays.asList(palette).indexOf(accent),i->{accent=palette[i];shell();});
+    addChoice("Accent colour",new String[]{"Ice blue","Violet","Emerald","Amber","Rose"},paletteIndex(),i->{accent=palette[i];shell();});
     content.addView(label("TOUCH FEEDBACK"));
     addChoice("Feedback",new String[]{"Sound","Vibration","Both","None"},feedbackSound&&feedbackVibe?2:feedbackSound?0:feedbackVibe?1:3,i->{feedbackSound=i==0||i==2;feedbackVibe=i==1||i==2;});
     content.addView(label("SIGNAL ALERTS  •  MANUAL"));
@@ -132,6 +132,7 @@ public class MainActivity extends Activity {
     addChoice("Baud rate",new String[]{"1200","2400","4800","9600","19200","38400","57600","115200"},new int[]{1200,2400,4800,9600,19200,38400,57600,115200}.length>0?baudIndex():3,i->{int[] a={1200,2400,4800,9600,19200,38400,57600,115200};baud=a[i];updateStatus();});
     TextView about=txt("SUMER • MAGNETOMETRIC SURVEY SYSTEM\nSingle-channel prototype • Android",12,muted());about.setPadding(dp(4),dp(20),dp(4),dp(20));content.addView(about);
   }
+  private int paletteIndex(){for(int i=0;i<palette.length;i++)if(palette[i]==accent)return i;return 0;}
   private int baudIndex(){int[] a={1200,2400,4800,9600,19200,38400,57600,115200};for(int i=0;i<a.length;i++)if(a[i]==baud)return i;return 3;}
   interface Pick{void choose(int i);}
   private void addChoice(String title,String[] opts,int selected,Pick pick){
