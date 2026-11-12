@@ -149,13 +149,28 @@ public class MainActivity extends Activity {
     addChoice("Alert output",new String[]{"Speaker","Vibration","Both","None"},alertSound&&alertVibe?2:alertSound?0:alertVibe?1:3,i->{alertSound=i==0||i==2;alertVibe=i==1||i==2;persistSettings();});
     content.addView(label("CONNECTION"));
     addChoice("Baud rate",new String[]{"1200","2400","4800","9600","19200","38400","57600","115200"},new int[]{1200,2400,4800,9600,19200,38400,57600,115200}.length>0?baudIndex():3,i->{int[] a={1200,2400,4800,9600,19200,38400,57600,115200};baud=a[i];persistSettings();updateStatus();});
+    Button testFeedback=btn("TEST TOUCH FEEDBACK");
+    testFeedback.setOnClickListener(v->{tap();toast("Touch feedback test complete");});content.addView(testFeedback);
+    Button testAlert=btn("TEST SIGNAL ALERT");
+    testAlert.setOnClickListener(v->{tap();if(alertVibe)vibrate(250);if(alertSound)tone();if(!alertVibe&&!alertSound)toast("Signal alert is disabled");});content.addView(testAlert);
     TextView about=txt("SUMER • MAGNETOMETRIC SURVEY SYSTEM\nSingle-channel prototype • Android",12,muted());about.setPadding(dp(4),dp(20),dp(4),dp(20));content.addView(about);
   }
   private int paletteIndex(){for(int i=0;i<palette.length;i++)if(palette[i]==accent)return i;return 0;}
   private int baudIndex(){int[] a={1200,2400,4800,9600,19200,38400,57600,115200};for(int i=0;i<a.length;i++)if(a[i]==baud)return i;return 3;}
   interface Pick{void choose(int i);}
   private void addChoice(String title,String[] opts,int selected,Pick pick){
-    LinearLayout box=col();box.setPadding(dp(13),dp(8),dp(13),dp(8));box.setBackground(shape(panel(),line()));TextView t=txt(title,13,fg());box.addView(t);Spinner sp=new Spinner(this);ArrayAdapter<String>a=new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,opts);sp.setAdapter(a);sp.setSelection(Math.max(0,selected));final boolean[] initial={true};sp.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener(){public void onNothingSelected(android.widget.AdapterView<?>p){}public void onItemSelected(android.widget.AdapterView<?>p,View v,int pos,long id){if(initial[0]){initial[0]=false;return;}pick.choose(pos);tap();}});box.addView(sp);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.bottomMargin=dp(9);content.addView(box,p);
+    LinearLayout box=col();box.setPadding(dp(13),dp(8),dp(13),dp(8));box.setBackground(shape(panel(),line()));
+    TextView t=txt(title,13,fg());box.addView(t);
+    Spinner sp=new Spinner(this);ArrayAdapter<String>a=new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,opts);
+    sp.setAdapter(a);sp.setSelection(Math.max(0,Math.min(selected,opts.length-1)));
+    sp.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener(){
+      private int previous=Math.max(0,Math.min(selected,opts.length-1));
+      public void onNothingSelected(android.widget.AdapterView<?>p){}
+      public void onItemSelected(android.widget.AdapterView<?>p,View v,int pos,long id){
+        if(pos==previous)return;previous=pos;pick.choose(pos);tap();
+      }
+    });
+    box.addView(sp);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.bottomMargin=dp(9);content.addView(box,p);
   }
   private void device(){
     content.addView(heading("DEVICE CONNECTION"));content.addView(txt("Bluetooth Classic / SPP • paired devices",12,muted()));
