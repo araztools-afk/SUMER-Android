@@ -409,7 +409,7 @@ public class MainActivity extends Activity {
       p.setColor(0x668899aa);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(1);Path outline=new Path();outline.moveTo(a[0],a[1]);outline.lineTo(bb[0],bb[1]);outline.lineTo(dd[0],dd[1]);outline.lineTo(cc[0],cc[1]);outline.close();canvas.drawPath(outline,p);p.setStyle(Paint.Style.FILL);
     }
   }
-  private int findScanIndex(int row,int col,int rows){for(int i=0;i<rows*50;i++){int[] rc=scanCell(i);if(rc[0]==row&&rc[1]==col)return i;}return -1;}
+  private int findScanIndex(int row,int col,int rows){return col*rows+((col%2==0)?rows-1-row:row);}
   private int scanValueAt(ArrayList<Integer> values,int index){return index>=0&&index<values.size()?values.get(index):0;}
   private Bitmap renderPerspectiveScan(ArrayList<Integer> values,int rows,int cols){
     int panelW=700,panelH=540;Bitmap b=Bitmap.createBitmap(panelW*3,panelH,Bitmap.Config.ARGB_8888);Canvas c=new Canvas(b);c.drawColor(0xff202832);
