@@ -82,7 +82,7 @@ public class MainActivity extends Activity {
     LinearLayout top=row();top.setPadding(dp(16),dp(9),dp(16),dp(9));
     brand=txt("SUMER",25,fg());brand.setTypeface(null,1);top.addView(brand,new LinearLayout.LayoutParams(0,dp(44),1));
     root.addView(top);
-    status=txt("●  DEVICE DISCONNECTED     •     9600 BAUD",11,muted());status.setPadding(dp(16),dp(10),dp(16),dp(10));status.setBackground(shape(panel(),line()));LinearLayout.LayoutParams sl=new LinearLayout.LayoutParams(-1,dp(42));sl.setMargins(dp(14),0,dp(14),dp(10));root.addView(status,sl);status.setOnClickListener(v->{tap();show("DEVICE");});
+    status=txt("●  "+tr("DEVICE DISCONNECTED")+"     •     9600 "+tr("BAUD"),11,muted());status.setPadding(dp(16),dp(10),dp(16),dp(10));status.setBackground(shape(panel(),line()));LinearLayout.LayoutParams sl=new LinearLayout.LayoutParams(-1,dp(42));sl.setMargins(dp(14),0,dp(14),dp(10));root.addView(status,sl);status.setOnClickListener(v->{tap();show("DEVICE");});
     ScrollView scroll=new ScrollView(this);content=col();content.setPadding(dp(14),dp(4),dp(14),dp(18));scroll.addView(content);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
     bottom=row();bottom.setPadding(dp(8),dp(7),dp(8),dp(7));bottom.setBackgroundColor(panel());root.addView(bottom,new LinearLayout.LayoutParams(-1,dp(60)));
     show(tab);
@@ -188,7 +188,7 @@ public class MainActivity extends Activity {
     ArrayList<Integer> values=scanDisplayValues();
     int lo=5000,hi=0;for(int v:values){lo=Math.min(lo,v);hi=Math.max(hi,v);}
     if(values.isEmpty()){lo=0;hi=5000;}
-    final ArrayList<Integer> data=values;final int low=lo,high=hi;final int[] bounds=scanBounds(data,scanRows,scanCols);final int displayRows=data.isEmpty()?scanRows:bounds[1]-bounds[0]+1;final int displayCols=data.isEmpty()?scanCols:bounds[3]-bounds[2]+1;
+    final ArrayList<Integer> data=values;final int low=lo,high=hi;final int[] bounds=scanBounds(data,scanRows,scanCols);final int displayRows=data.isEmpty()||!"AI".equals(scanViewMode)?scanRows:bounds[1]-bounds[0]+1;final int displayCols=data.isEmpty()||!"AI".equals(scanViewMode)?scanCols:bounds[3]-bounds[2]+1;
     content.addView(heading(tr("SCAN COLOUR MAP")+" • "+values.size()+" / "+(scanRows*scanCols)+" "+tr("VALUES")));
     content.addView(txt(tr("MIN")+" "+(values.isEmpty()?"—":lo)+"   "+tr("MAX")+" "+(values.isEmpty()?"—":hi)+"   "+tr("GRID")+" "+displayRows+" × "+displayCols+"   •   "+tr("ZIGZAG FROM BOTTOM-LEFT"),11,muted()));
     View map;
@@ -380,7 +380,7 @@ public class MainActivity extends Activity {
   private void disconnect(){reconnectEnabled=false;disconnectSocketOnly();updateStatus();}
   private void scheduleReconnect(){if(!autoReconnect||!reconnectEnabled||lastDeviceAddress.isEmpty())return;handler.postDelayed(()->{if(reconnectEnabled&&socket==null)connectAddress(lastDeviceAddress);},5000);}
   @SuppressWarnings("MissingPermission") private void connectAddress(String address){try{BluetoothDevice d=BluetoothAdapter.getDefaultAdapter().getRemoteDevice(address);connect(d);}catch(Exception e){scheduleReconnect();}}
-  private void updateStatus(){if(status!=null)status.setText("●  DEVICE DISCONNECTED     •     "+baud+" BAUD");}
+  private void updateStatus(){if(status!=null)status.setText("●  "+tr("DEVICE DISCONNECTED")+"     •     "+baud+" "+tr("BAUD"));}
   private void tap(){if(feedbackVibe)vibrate(18);if(feedbackSound)tone();}
   private void signalAlert(int duration){if(alertVibe)vibrate(duration);if(alertSound)toneFor(duration);}
   private void toneFor(int duration){try{ToneGenerator t=new ToneGenerator(AudioManager.STREAM_NOTIFICATION,65);t.startTone(ToneGenerator.TONE_PROP_BEEP,duration);handler.postDelayed(t::release,duration+80);}catch(Exception ignored){}}
@@ -441,11 +441,11 @@ public class MainActivity extends Activity {
   private String safeProjectName(){String n=projectName==null?"SUMER":projectName.trim();n=n.replaceAll("[^\\p{L}\\p{N}_-]","_").replaceAll("_+","_");return n.isEmpty()?"SUMER":n;}
   private void saveScanToGallery(){
     try{
-      File dir=getProjectDirectory();String stamp=new java.text.SimpleDateFormat("yyyyMMdd_HHmmss",Locale.US).format(new Date());String base=safeProjectName()+"_"+stamp;
+      File dir=getProjectDirectory();String stamp=new java.text.SimpleDateFormat("yyyyMMdd_HHmmss",Locale.US).format(new Date());String base=safeProjectName();
       Bitmap interpolation=renderInterpolationScan(lastScan,scanRows,scanCols);Bitmap basic=renderFlatScan(lastScan,scanRows,scanCols,1);Bitmap surface=renderPerspectiveScan(lastScan,scanRows,scanCols);
       Bitmap[] images={interpolation,basic,surface};String[] suffix={"_Interpolation","_Basic","_3D"};
-      for(int i=0;i<images.length;i++){File png=new File(dir,base+suffix[i]+".png");try(FileOutputStream out=new FileOutputStream(png)){images[i].compress(Bitmap.CompressFormat.PNG,100,out);}images[i].recycle();}
-      File csv=new File(dir,base+"_Data.csv");try(FileWriter w=new FileWriter(csv)){w.write("row,column,block,value"+System.lineSeparator());for(int i=0;i<lastScan.size();i++){int[] rc=scanCell(i);w.write((rc[0]+1)+","+(rc[1]+1)+","+(i+1)+","+lastScan.get(i)+System.lineSeparator());}}
+      for(int i=0;i<images.length;i++){File png=new File(dir,base+suffix[i]+"_"+stamp+".png");try(FileOutputStream out=new FileOutputStream(png)){images[i].compress(Bitmap.CompressFormat.PNG,100,out);}images[i].recycle();}
+      File csv=new File(dir,base+"_Data_"+stamp+".csv");try(FileWriter w=new FileWriter(csv)){w.write("row,column,block,value"+System.lineSeparator());for(int i=0;i<lastScan.size();i++){int[] rc=scanCell(i);w.write((rc[0]+1)+","+(rc[1]+1)+","+(i+1)+","+lastScan.get(i)+System.lineSeparator());}}
       toast("3 project images and CSV saved");
     }catch(Exception e){toast("Could not save scan: "+e.getMessage());}
   }
@@ -543,6 +543,15 @@ public class MainActivity extends Activity {
     addT("Bluetooth unavailable","بلوتوث در دسترس نیست","البلوتوث غير متاح","Bluetooth недоступен","Bluetooth kullanılamıyor","Bluetooth nicht verfügbar");addT("Turn on Bluetooth first","ابتدا بلوتوث را روشن کنید","قم بتشغيل Bluetooth أولاً","Сначала включите Bluetooth","Önce Bluetooth'u açın","Schalten Sie zuerst Bluetooth ein");addT("Bluetooth devices — searching","دستگاه‌های بلوتوث — در حال جست‌وجو","أجهزة Bluetooth — جارٍ البحث","Bluetooth-устройства — поиск","Bluetooth cihazları — aranıyor","Bluetooth-Geräte — Suche");addT("Bluetooth devices — search complete","دستگاه‌های بلوتوث — جست‌وجو پایان یافت","أجهزة Bluetooth — اكتمل البحث","Bluetooth-устройства — поиск завершён","Bluetooth cihazları — arama tamamlandı","Bluetooth-Geräte — Suche abgeschlossen");addT("Close","بستن","إغلاق","Закрыть","Kapat","Schließen");addT("Searching for nearby Bluetooth devices…","در حال جست‌وجوی دستگاه‌های بلوتوث اطراف…","جارٍ البحث عن أجهزة Bluetooth القريبة…","Поиск ближайших Bluetooth-устройств…","Yakındaki Bluetooth cihazları aranıyor…","Suche nach Bluetooth-Geräten in der Nähe…");addT("Bluetooth search failed: ","جست‌وجوی بلوتوث ناموفق بود: ","فشل البحث عن Bluetooth: ","Не удалось выполнить поиск Bluetooth: ","Bluetooth araması başarısız: ","Bluetooth-Suche fehlgeschlagen: ");
     addT("Bluetooth device","دستگاه بلوتوث","جهاز Bluetooth","Bluetooth-устройство","Bluetooth cihazı","Bluetooth-Gerät");addT("● CONNECTING…","● در حال اتصال…","● جارٍ الاتصال…","● Подключение…","● Bağlanıyor…","● Verbindung wird hergestellt…");addT("● CONNECTION FAILED","● اتصال ناموفق","● فشل الاتصال","● Ошибка подключения","● Bağlantı başarısız","● Verbindung fehlgeschlagen");addT("Connection failed","اتصال ناموفق بود","فشل الاتصال","Не удалось подключиться","Bağlantı başarısız","Verbindung fehlgeschlagen");addT("● CONNECTION LOST","● اتصال قطع شد","● فُقد الاتصال","● Соединение потеряно","● Bağlantı koptu","● Verbindung verloren");addT("● CONNECTION CLOSED","● اتصال بسته شد","● تم إغلاق الاتصال","● Соединение закрыто","● Bağlantı kapandı","● Verbindung geschlossen");
     addT("Device is not connected","دستگاه متصل نیست","الجهاز غير متصل","Устройство не подключено","Cihaz bağlı değil","Gerät ist nicht verbunden");addT("Value must be 0–5000","مقدار باید بین ۰ تا ۵۰۰۰ باشد","يجب أن تكون القيمة بين 0 و5000","Значение должно быть от 0 до 5000","Değer 0–5000 arasında olmalıdır","Der Wert muss zwischen 0 und 5000 liegen");addT("Image exported to Pictures/SUMER","تصویر در Pictures/SUMER ذخیره شد","تم تصدير الصورة إلى Pictures/SUMER","Изображение экспортировано в Pictures/SUMER","Görüntü Pictures/SUMER klasörüne aktarıldı","Bild nach Pictures/SUMER exportiert");addT("3 project images and CSV saved","سه تصویر پروژه و فایل CSV ذخیره شد","تم حفظ ثلاث صور للمشروع وملف CSV","Сохранены три изображения проекта и CSV","Üç proje görseli ve CSV kaydedildi","Drei Projektbilder und CSV gespeichert");addT("Could not save scan: ","ذخیره اسکن ممکن نشد: ","تعذر حفظ المسح: ","Не удалось сохранить сканирование: ","Tarama kaydedilemedi: ","Scan konnte nicht gespeichert werden: ");
+    addT("OPEN DATA TERMINAL  →","باز کردن پایانه داده  ←","فتح طرفية البيانات  ←","Открыть терминал данных  →","Veri terminalini aç  →","Datenterminal öffnen  →");
+    addT("DEVICE DISCONNECTED","دستگاه قطع است","الجهاز غير متصل","Устройство отключено","Cihaz bağlı değil","Gerät getrennt");addT("BAUD","باد","بود","бод","baud","Baud");
+    addT("● CONNECTED  •  ","● متصل  •  ","● متصل  •  ","● Подключено  •  ","● Bağlandı  •  ","● Verbunden  •  ");addT("● CONNECTION CLOSED","● اتصال بسته شد","● تم إغلاق الاتصال","● Соединение закрыто","● Bağlantı kapandı","● Verbindung geschlossen");
+    addT("MATRIX SCAN START","شروع اسکن ماتریسی","بدء المسح المصفوفي","Начало сканирования матрицы","Matris taraması başladı","Matrixscan gestartet");addT("MATRIX SCAN END • ","پایان اسکن ماتریسی • ","نهاية المسح المصفوفي • ","Конец сканирования матрицы • ","Matris taraması bitti • ","Matrixscan beendet • ");addT("INVALID  ","نامعتبر  ","غير صالح  ","Неверно  ","Geçersiz  ","UNGÜLTIG  ");
+    addT("OPEN SAVED SCAN GALLERY","باز کردن گالری پروژه‌های ذخیره‌شده","فتح معرض عمليات المسح المحفوظة","Открыть галерею сохранённых сканирований","Kayıtlı tarama galerisini aç","Gespeicherte Scan-Galerie öffnen");
+    addT("SUMER • MAGNETOMETRIC SURVEY SYSTEM\nSingle-channel prototype • Android","SUMER • سامانه پیمایش مغناطیس‌سنجی\nنمونه تک‌کاناله • اندروید","SUMER • نظام المسح المغناطيسي\nنموذج أحادي القناة • Android","SUMER • Система магнитометрической съёмки\nОдноканальный прототип • Android","SUMER • Manyetometrik tarama sistemi\nTek kanallı prototip • Android","SUMER • Magnetometrisches Vermessungssystem\nEinkanal-Prototyp • Android");
+    addT("Bluetooth search failed: ","جست‌وجوی بلوتوث ناموفق بود: ","فشل البحث عن Bluetooth: ","Не удалось выполнить поиск Bluetooth: ","Bluetooth araması başarısız: ","Bluetooth-Suche fehlgeschlagen: ");
+    addT("The app needs at least four points for a 3D surface","برای سطح سه‌بعدی حداقل چهار نقطه لازم است","يحتاج التطبيق إلى أربع نقاط على الأقل لسطح ثلاثي الأبعاد","Для 3D-поверхности нужно не менее четырёх точек","3B yüzey için en az dört nokta gerekir","Für eine 3D-Oberfläche sind mindestens vier Punkte erforderlich");
+
   }
   @Override public void onRequestPermissionsResult(int r,String[] p,int[] g){super.onRequestPermissionsResult(r,p,g);if(r==BT_REQ&&g.length>=2&&g[0]==PackageManager.PERMISSION_GRANTED&&g[1]==PackageManager.PERMISSION_GRANTED)searchDevices();}
   @Override protected void onDestroy(){stopDiscovery();disconnect();super.onDestroy();}
