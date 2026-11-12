@@ -1,9 +1,9 @@
-name: Build SUMER Android APK
+name: Build SUMER Matrix Single-Channel APK
 
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches: [ main, "feature/matrix-single-channel" ]
     paths:
       - "app/**"
       - "*.gradle.kts"
@@ -58,7 +58,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: SUMER-debug-apk
+          name: SUMER-matrix-single-channel-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
