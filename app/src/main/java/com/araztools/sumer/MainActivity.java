@@ -113,7 +113,7 @@ public class MainActivity extends Activity {
   }
   private void live(){
     content.addView(heading("LIVE MONITOR"));content.addView(txt("One live block • previous frame is replaced",12,muted()));stats();
-    TextView block=txt(last<0?"WAITING FOR DATA":""+last,36,0xffffffff);block.setGravity(Gravity.CENTER);block.setTypeface(null,1);block.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,new int[]{0xff164bdb,0xff00b7d7,0xff00b76c,0xffffc629,0xffef3b32}));LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(-1,dp(190));bp.topMargin=dp(14);bp.bottomMargin=dp(12);content.addView(block,bp);
+    TextView block=txt(last<0?"WAITING FOR DATA":""+last,36,0xffffffff);block.setGravity(Gravity.CENTER);block.setTypeface(null,1);block.setBackground(shape(scanColor(last<0?0:last,min>5000?0:min,max<0?5000:max),0));LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(-1,dp(190));bp.topMargin=dp(14);bp.bottomMargin=dp(12);content.addView(block,bp);
     
     testDataInput("MANUAL LIVE DATA INPUT");
     Button pause=btn("CLEAR LIVE MIN / MAX");pause.setOnClickListener(v->{tap();min=5001;max=-1;last=-1;show("LIVE");});content.addView(pause);
@@ -150,7 +150,7 @@ public class MainActivity extends Activity {
     content.addView(heading("AUTOMATIC SURVEY"));content.addView(txt("Automatic acquisition • zigzag path from the bottom-left corner.",12,muted()));galleryButton();stats();scanControls();scanTestButton();
     TextView state=txt(autoRunning?"●  ACQUISITION ACTIVE":"○  READY",17,autoRunning?0xff20c997:muted());state.setGravity(Gravity.CENTER);state.setBackground(shape(panel(),line()));
     LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,dp(72));p.topMargin=dp(12);content.addView(state,p);
-    Button b=btn(autoRunning?"STOP SESSION":"START SESSION");b.setOnClickListener(v->{tap();autoRunning=!autoRunning;show("AUTOMATIC");});content.addView(b);
+    Button b=btn(autoRunning?"STOP SESSION":"START SESSION");b.setOnClickListener(v->{tap();if(!autoRunning){autoRunning=true;matrixScanActive=true;activeScan.clear();lastScan.clear();toast("Automatic scan session started");}else{finishMatrixScan();toast("Automatic scan session finished");}show("AUTOMATIC");});content.addView(b);
     testDataInput("MANUAL TEST DATA RECEIVER");
     scanVisualization();
     content.addView(txt("Test values enter the same display pipeline; no synthetic readings are generated automatically.",11,muted()));
@@ -176,12 +176,12 @@ public class MainActivity extends Activity {
     return 0xff000000|(r<<16)|(g<<8)|bl;
   }
   private void scanVisualization(){
-    if(lastScan.isEmpty()){TextView waiting=txt("SCAN MAP / CHART WILL APPEAR AFTER START 'a' → DATA → END 'a'",10,muted());waiting.setPadding(dp(4),dp(12),dp(4),dp(12));content.addView(waiting);return;}
+    if(lastScan.isEmpty()){TextView waiting=txt("SCAN MAP / GRAPH APPEAR AFTER START → DATA → FINISH",10,muted());waiting.setPadding(dp(4),dp(12),dp(4),dp(12));content.addView(waiting);return;}
     int lo=5000,hi=0;for(int v:lastScan){lo=Math.min(lo,v);hi=Math.max(hi,v);}
-    content.addView(heading("SCAN COLOUR MAP  •  "+lastScan.size()+" VALUES"));
-    TextView range=txt("MIN "+lo+"     MAX "+hi+"     GRID "+scanRows+" × "+scanCols,11,muted());content.addView(range);
-    int count=Math.min(lastScan.size(),scanRows*scanCols);int rows=(count+scanCols-1)/scanCols;
-    for(int r=0;r<rows;r++){LinearLayout line=row();for(int c=0;c<scanCols;c++){int idx=r*scanCols+c;if(idx<count){int val=lastScan.get(idx);TextView cell=txt(""+val,10,0xffffffff);cell.setGravity(Gravity.CENTER);cell.setTypeface(null,1);cell.setBackground(shape(scanColor(val,lo,hi),0));LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(0,dp(42),1);cp.setMargins(dp(2),dp(2),dp(2),dp(2));line.addView(cell,cp);}else{View blank=new View(this);LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(0,dp(42),1);cp.setMargins(dp(2),dp(2),dp(2),dp(2));line.addView(blank,cp);}}content.addView(line);}
+    content.addView(heading("SCAN COLOUR MAP • "+lastScan.size()+" VALUES"));
+    content.addView(txt("MIN "+lo+"   MAX "+hi+"   GRID "+scanRows+" × "+scanCols+"   •   ZIGZAG FROM BOTTOM-LEFT",11,muted()));
+    View map=new View(this){protected void onDraw(Canvas canvas){super.onDraw(canvas);float cw=getWidth()/(float)scanCols,ch=getHeight()/(float)scanRows;Paint p=new Paint(3);p.setTextAlign(Paint.Align.CENTER);int count=Math.min(lastScan.size(),scanRows*scanCols);for(int i=0;i<count;i++){int[] rc=scanCell(i);float x=rc[1]*cw,y=rc[0]*ch;p.setColor(scanColor(lastScan.get(i),lo,hi));canvas.drawRect(x+dp(2),y+dp(2),x+cw-dp(2),y+ch-dp(2),p);p.setColor(0x99ffffff);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(dp(1));canvas.drawRect(x+dp(2),y+dp(2),x+cw-dp(2),y+ch-dp(2),p);p.setStyle(Paint.Style.FILL);p.setColor(0xffffffff);p.setTextSize(dp(9));canvas.drawText("#"+(i+1),x+cw/2,y+ch*.42f,p);p.setTextSize(dp(13));canvas.drawText(""+lastScan.get(i),x+cw/2,y+ch*.72f,p);}}};
+    map.setBackground(shape(panel(),line()));LinearLayout.LayoutParams mp=new LinearLayout.LayoutParams(-1,dp(Math.max(150,Math.min(420,scanRows*48))));mp.bottomMargin=dp(10);content.addView(map,mp);
     content.addView(heading("SCAN GRAPH"));
     View chart=new View(this){protected void onDraw(Canvas canvas){super.onDraw(canvas);float w=getWidth(),h=getHeight();if(w<=0||h<=0)return;Paint p=new Paint(3);p.setColor(line());p.setStrokeWidth(dp(1));for(int i=1;i<4;i++)canvas.drawLine(0,h*i/4,w,h*i/4,p);p.setColor(accent);p.setStrokeWidth(dp(2));p.setStyle(Paint.Style.STROKE);Path path=new Path();for(int i=0;i<lastScan.size();i++){float x=lastScan.size()==1?w/2:(w-8)*i/(lastScan.size()-1)+4;float y=h-4-(lastScan.get(i)/5000f)*(h-8);if(i==0)path.moveTo(x,y);else path.lineTo(x,y);}canvas.drawPath(path,p);p.setStyle(Paint.Style.FILL);}};
     chart.setBackground(shape(panel(),line()));LinearLayout.LayoutParams chartP=new LinearLayout.LayoutParams(-1,dp(150));chartP.bottomMargin=dp(14);content.addView(chart,chartP);
@@ -294,7 +294,7 @@ public class MainActivity extends Activity {
     }catch(Exception ignored){}finally{if(track!=null)try{track.stop();track.release();}catch(Exception ignored){}}}).start();
   }
 
-  private void finishMatrixScan(){matrixScanActive=false;lastScan.clear();lastScan.addAll(activeScan);activeScan.clear();if(!lastScan.isEmpty())saveScanToGallery();if(!tab.equals("LIVE"))logs.add(0,"MATRIX SCAN END • "+lastScan.size()+" values");}
+  private void finishMatrixScan(){matrixScanActive=false;autoRunning=false;lastScan.clear();lastScan.addAll(activeScan);activeScan.clear();if(!lastScan.isEmpty())saveScanToGallery();if(!tab.equals("LIVE"))logs.add(0,"MATRIX SCAN END • "+lastScan.size()+" values");}
   private int[] scanCell(int index){int col=index/scanRows,offset=index%scanRows;int row=(col%2==0)?scanRows-1-offset:offset;return new int[]{row,col};}
   private void galleryButton(){Button g=btn("OPEN SAVED SCAN GALLERY");g.setOnClickListener(v->{tap();show("GALLERY");});content.addView(g);}
   private void saveScanToGallery(){try{File dir=new File(getFilesDir(),"scans");if(!dir.exists())dir.mkdirs();String stamp=new java.text.SimpleDateFormat("yyyyMMdd_HHmmss",Locale.US).format(new Date());File png=new File(dir,"SUMER_"+stamp+".png");Bitmap bitmap=renderScanBitmap(lastScan,scanRows,scanCols);try(FileOutputStream out=new FileOutputStream(png)){bitmap.compress(Bitmap.CompressFormat.PNG,100,out);}bitmap.recycle();File csv=new File(dir,"SUMER_"+stamp+".csv");try(FileWriter w=new FileWriter(csv)){w.write("row,column,block,value"+System.lineSeparator());for(int i=0;i<lastScan.size();i++){int[] rc=scanCell(i);w.write((rc[0]+1)+","+(rc[1]+1)+","+(i+1)+","+lastScan.get(i)+System.lineSeparator());}}toast("Scan saved to SUMER gallery");}catch(Exception e){toast("Could not save scan: "+e.getMessage());}}
