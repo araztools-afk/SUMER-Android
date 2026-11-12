@@ -41,12 +41,12 @@ public class MainActivity extends Activity {
   private BluetoothSocket socket;
   private Thread reader;
   private static final int BT_REQ=71;
-  private int bg(){return dark?0xff080f1b:0xffeef3f9;}
-  private int panel(){return dark?0xff111f32:0xffffffff;}
-  private int panel2(){return dark?0xff172941:0xffe2eaf4;}
+  private int bg(){return dark?0xff242a30:0xffeef3f9;}
+  private int panel(){return dark?0xff303840:0xffffffff;}
+  private int panel2(){return dark?0xff3a444e:0xffe2eaf4;}
   private int fg(){return dark?0xfff2f7ff:0xff142238;}
-  private int muted(){return dark?0xff9aacc2:0xff62748b;}
-  private int line(){return dark?0xff263c57:0xffd2ddea;}
+  private int muted(){return dark?0xffb2bdc8:0xff62748b;}
+  private int line(){return dark?0xff4b5864:0xffd2ddea;}
   private int dp(float n){return (int)(n*getResources().getDisplayMetrics().density+.5f);}
   @Override public void onCreate(Bundle b){super.onCreate(b);android.content.SharedPreferences pref=getPreferences(0);dark=pref.getBoolean("dark",true);accent=pref.getInt("accent",0xff18bfff);feedbackSound=pref.getBoolean("feedbackSound",true);feedbackVibe=pref.getBoolean("feedbackVibe",true);alertSound=pref.getBoolean("alertSound",false);alertVibe=pref.getBoolean("alertVibe",false);baud=pref.getInt("baud",9600);scanRows=pref.getInt("scanRows",4);scanCols=pref.getInt("scanCols",3);autoReconnect=pref.getBoolean("autoReconnect",true);lastDeviceAddress=pref.getString("lastDeviceAddress","");getWindow().setNavigationBarColor(bg());getWindow().setStatusBarColor(bg());getWindow().getDecorView().setSystemUiVisibility(dark?0:View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);if(!pref.getBoolean("activated",false)){registration();}else{shell();if(autoReconnect&&!lastDeviceAddress.isEmpty())handler.postDelayed(()->{if(Build.VERSION.SDK_INT<31||checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT)==PackageManager.PERMISSION_GRANTED)connectAddress(lastDeviceAddress);},900);}}
   private void persistSettings(){getPreferences(0).edit().putBoolean("dark",dark).putInt("accent",accent).putBoolean("feedbackSound",feedbackSound).putBoolean("feedbackVibe",feedbackVibe).putBoolean("alertSound",alertSound).putBoolean("alertVibe",alertVibe).putInt("baud",baud).putInt("scanRows",scanRows).putInt("scanCols",scanCols).putBoolean("autoReconnect",autoReconnect).apply();}
@@ -150,7 +150,7 @@ public class MainActivity extends Activity {
     content.addView(heading("AUTOMATIC SURVEY"));content.addView(txt("Automatic acquisition • zigzag path from the bottom-left corner.",12,muted()));galleryButton();stats();scanControls();scanTestButton();
     TextView state=txt(autoRunning?"●  ACQUISITION ACTIVE":"○  READY",17,autoRunning?0xff20c997:muted());state.setGravity(Gravity.CENTER);state.setBackground(shape(panel(),line()));
     LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,dp(72));p.topMargin=dp(12);content.addView(state,p);
-    Button b=btn(autoRunning?"STOP SESSION":"START SESSION");b.setOnClickListener(v->{tap();if(!autoRunning){autoRunning=true;matrixScanActive=true;activeScan.clear();lastScan.clear();toast("Automatic scan session started");}else{finishMatrixScan();toast("Automatic scan session finished");}show("AUTOMATIC");});content.addView(b);
+    Button b=btn(autoRunning?"STOP SESSION":"START SESSION");b.setOnClickListener(v->{tap();if(!autoRunning){autoRunning=true;matrixScanActive=false;activeScan.clear();lastScan.clear();toast("Automatic session ready — waiting for scan marker");}else{if(matrixScanActive)finishMatrixScan();autoRunning=false;toast("Automatic scan session stopped");}show("AUTOMATIC");});content.addView(b);
     testDataInput("MANUAL TEST DATA RECEIVER");
     scanVisualization();
     content.addView(txt("Test values enter the same display pipeline; no synthetic readings are generated automatically.",11,muted()));
@@ -253,7 +253,7 @@ public class MainActivity extends Activity {
     disconnectSocketOnly();status.setText("● CONNECTING…");
     final BluetoothSocket localSocket;
     try{localSocket=dev.createRfcommSocketToServiceRecord(UUID.fromString("00001101-0000-1000-8000-00805F9B34FB"));socket=localSocket;}
-    catch(Exception e){status.setText("● CONNECTION FAILED");toast(e.getMessage()==null?"Connection failed":e.getMessage());return;}
+    catch(Exception e){status.setText("● CONNECTION FAILED");toast(e.getMessage()==null?"Connection failed":e.getMessage());scheduleReconnect();return;}
     reader=new Thread(()->{
       try{
         localSocket.connect();
@@ -270,7 +270,7 @@ public class MainActivity extends Activity {
         handler.post(()->{if(socket==localSocket){status.setText("● CONNECTION LOST");toast(e.getMessage()==null?"Connection failed":e.getMessage());scheduleReconnect();}});
       }finally{
         try{localSocket.close();}catch(Exception ignored){}
-        if(socket==localSocket)socket=null;
+        if(socket==localSocket){socket=null;handler.post(()->{if(status!=null)status.setText("● CONNECTION CLOSED");scheduleReconnect();});}
       }
     });reader.start();
   }
