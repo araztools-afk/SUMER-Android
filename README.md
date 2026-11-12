@@ -1,36 +1,45 @@
 # SUMER Android
 
-Initial Android application for the SUMER multi-sensor scanner.
+SUMER is a magnetometric geological survey application prototype. It is **not** a conventional metal-detector app.
 
-## Current prototype
+## Current UI prototype: SUMER1
 
-- Android app module: `com.araztools.sumer`
-- Bluetooth: Bluetooth Classic / SPP, intended for HC-05
-- Controller: ATmega128
-- Incoming text protocol: one value per line, numeric range 0–5000
-- Standalone `a` line toggles matrix scan start/end
-- User-configurable matrix dimensions
-- Raw incoming values and receive log
+- Official app label: SUMER
+- Temporary vector launcher icon
+- First-launch serial-registration screen
+- Tile-based home screen: LIVE / PIN / AUTOMATIC / MANUAL
+- Wide Device Connection strip above the tiles
+- Wide Settings strip below the tiles
+- Single numeric input stream (0–5000)
+- Live screen replaces its single current visual block; it does not build a live image history
+- Manual value entry, Automatic session controls, and PIN point capture
+- Settings: dark/light theme, accent colour, manual alert output, touch feedback, baud-rate selection
+- Bluetooth Classic / SPP connection to paired devices
+- Data terminal and recent-value log
 
-## Important protocol note
+## Registration limitation
 
-The current prototype does not guess which incoming numeric value belongs to each of the four FLC100 channels or the inductive channel. A channel identifier or a confirmed fixed transmission order is needed before assigning the five channels to separate displays. During matrix mode, valid numeric values are added sequentially to the matrix.
+The current prototype checks the serial string format and stores successful activation locally. It does **not** yet verify a unique license against a secure license service or signed offline license database. Do not use this prototype gate as production-grade copy protection. A secure per-user/per-install license issuer and verifier must be implemented before commercial release.
+
+## Connection and data limitations
+
+- The current app is configured for one numeric input channel.
+- Incoming values are expected as text lines containing integers from 0 to 5000.
+- A standalone `a` line is retained as a scan marker.
+- Baud rate is a user setting for matching the transmitter configuration; selecting it in the app does not remotely change the Bluetooth module's UART speed.
+- Automatic mode does not invent sample values; it displays actual incoming values.
+- PIN points are session-local in this prototype. Persistent project storage is a later milestone.
 
 ## Build APK in GitHub
 
-1. Open the **Actions** tab in this repository.
+1. Open the **Actions** tab.
 2. Select **Build SUMER Android APK**.
-3. If required, press **Run workflow** on branch `main`.
-4. Wait until the run finishes successfully.
-5. Open the completed run and download the `SUMER-debug-apk` artifact.
-6. Extract the ZIP file. The installable debug package is `app-debug.apk`.
+3. Wait for the workflow to finish successfully.
+4. Open the completed run and download the `SUMER-debug-apk` artifact.
+5. Extract the ZIP and install `app-debug.apk`.
 
-The workflow builds with JDK 17, Gradle 8.9 and Android Gradle Plugin 8.7.3. The APK is a debug build, not a Play Store release.
+The workflow uses JDK 17, Gradle 8.9 and Android Gradle Plugin 8.7.3. The APK is a debug build.
 
 ## Install on Android
 
-Copy `app-debug.apk` to the phone, open it, and allow installation from that file source if Android asks. Pair the HC-05 first in Android Bluetooth settings. Then open SUMER, grant Nearby devices/Bluetooth permission, refresh paired devices, select HC-05 and connect.
-
-## Hardware validation
-
-A successful cloud build does not prove the Bluetooth link or sensor protocol on real hardware. HC-05/ATmega128 testing requires the physical scanner.
+The preview uses application ID `com.araztools.sumer.livepreview` so it can be installed alongside the earlier S1 package. Android 6.0+ is the configured minimum. Pair the Bluetooth device in Android settings before connecting from SUMER.
