@@ -1,204 +1,184 @@
 package com.araztools.sumer;
 
-import android.app.Activity;
-import android.os.Bundle;
-import android.os.Handler;
+import android.Manifest;
+import android.app.*;
+import android.bluetooth.*;
+import android.content.*;
+import android.content.pm.PackageManager;
 import android.graphics.*;
-import android.view.Gravity;
-import android.view.View;
+import android.os.*;
+import android.view.*;
 import android.widget.*;
-import java.util.Random;
-import java.util.Arrays;
+import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
 
 public class MainActivity extends Activity {
-    private final Handler handler = new Handler();
-    private final Random random = new Random();
-    private final int rows = 16, cols = 16, blockSize = rows * cols;
-    private final int[] block = new int[blockSize];
-    private int blockCount = 0;
-    private int minValue = Integer.MAX_VALUE, maxValue = Integer.MIN_VALUE;
-    private int latestValue = 0;
-    private long blocksRendered = 0;
-    private boolean running = false;
-    private Bitmap latestBitmap;
-    private ScanView scanView;
-    private TextView status, latestText, minText, maxText, countText;
-    private Button startButton;
+    private static final int REQ_BT = 41;
+    private final Handler ui = new Handler(Looper.getMainLooper());
+    private final int[] matrix = new int[256];
+    private final ArrayDeque<Integer> history = new ArrayDeque<>();
+    private final int[] channels = new int[5];
+    private int channelCursor = 0, matrixCursor = 0, min = Integer.MAX_VALUE, max = Integer.MIN_VALUE;
+    private long received = 0;
+    private String currentTab = "خانه";
+    private boolean matrixActive = false, demo = false;
+    private BluetoothSocket socket;
+    private Thread reader;
+    private TextView status, valueText, minText, maxText, countText, serialLog;
+    private EditText manualInput;
+    private FrameLayout pageHost;
+    private GraphView graph;
+    private MatrixView matrixView;
+    private LinearLayout root, nav;
+    private final String[] tabs = {"خانه", "سریال", "عددی / Live", "خطی", "ماتریسی", "تحلیل"};
 
-    private final Runnable demoFeed = new Runnable() {
-        @Override public void run() {
-            if (!running) return;
-            int value = 1700 + (int)(950 * Math.sin(blocksRendered * 0.21 + blockCount * 0.12))
-                    + random.nextInt(701) - 350;
-            acceptValue(Math.max(0, Math.min(5000, value)));
-            handler.postDelayed(this, 55);
-        }
-    };
-
-    @Override protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        buildUi();
-        renderEmptyBlock();
+    @Override public void onCreate(Bundle b) {
+        super.onCreate(b);
+        getWindow().setStatusBarColor(Color.rgb(10,18,29));
+        getWindow().setNavigationBarColor(Color.rgb(10,18,29));
+        buildShell();
+        showTab("خانه");
     }
-
-    private int dp(float v) { return (int)(v * getResources().getDisplayMetrics().density + 0.5f); }
-
-    private TextView label(String text, int size, int color) {
-        TextView t = new TextView(this);
-        t.setText(text); t.setTextSize(size); t.setTextColor(color);
-        t.setGravity(Gravity.CENTER);
-        t.setPadding(dp(5), dp(5), dp(5), dp(5));
-        return t;
+    private int dp(float x){ return (int)(x*getResources().getDisplayMetrics().density+.5f); }
+    private TextView text(String s,int size,int color){ TextView t=new TextView(this);t.setText(s);t.setTextSize(size);t.setTextColor(color);t.setGravity(Gravity.CENTER);t.setPadding(dp(6),dp(7),dp(6),dp(7));return t; }
+    private LinearLayout column(){ LinearLayout l=new LinearLayout(this);l.setOrientation(1);l.setPadding(dp(14),dp(10),dp(14),dp(14));return l; }
+    private LinearLayout row(){ LinearLayout l=new LinearLayout(this);l.setOrientation(0);l.setGravity(Gravity.CENTER_VERTICAL);return l; }
+    private Button button(String s,Runnable r){Button b=new Button(this);b.setText(s);b.setOnClickListener(v->r.run());return b;}
+    private void buildShell(){
+        root=column();root.setBackgroundColor(Color.rgb(12,19,29));setContentView(root);
+        TextView brand=text("SUMER  •  SMART SCANNER",20,Color.WHITE);root.addView(brand);
+        status=text("● آماده | Bluetooth: قطع",12,Color.rgb(110,220,170));root.addView(status);
+        HorizontalScrollView hsv=new HorizontalScrollView(this);hsv.setHorizontalScrollBarEnabled(false);
+        nav=row();hsv.addView(nav);root.addView(hsv);
+        pageHost=new FrameLayout(this);LinearLayout.LayoutParams pp=new LinearLayout.LayoutParams(-1,0,1);root.addView(pageHost,pp);
+        for(String tab:tabs){Button b=new Button(this);b.setText(tab);b.setTextSize(11);b.setPadding(dp(5),0,dp(5),0);b.setOnClickListener(v->showTab(tab));nav.addView(b);}
     }
-
-    private void buildUi() {
-        ScrollView scroll = new ScrollView(this);
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(16), dp(14), dp(16), dp(20));
-        root.setBackgroundColor(Color.rgb(12, 19, 29));
-        scroll.addView(root);
-        setContentView(scroll);
-
-        root.addView(label("SUMER", 30, Color.WHITE));
-        root.addView(label("LIVE SCAN  •  نمونه تغییرات جدید", 13, Color.rgb(120, 190, 220)));
-        status = label("● آماده — ورودی آزمایشی", 14, Color.rgb(100, 220, 160));
-        root.addView(status);
-
-        LinearLayout stats = new LinearLayout(this);
-        stats.setOrientation(LinearLayout.HORIZONTAL);
-        latestText = statBox(stats, "آخرین داده", "—");
-        minText = statBox(stats, "MIN", "—");
-        maxText = statBox(stats, "MAX", "—");
-        root.addView(stats);
-
-        root.addView(label("تصویر زنده — فقط آخرین بلوک", 16, Color.WHITE));
-        scanView = new ScanView();
-        LinearLayout.LayoutParams imageParams = new LinearLayout.LayoutParams(-1, dp(300));
-        imageParams.setMargins(0, dp(8), 0, dp(8));
-        root.addView(scanView, imageParams);
-
-        countText = label("بلوک‌های تولیدشده: 0", 13, Color.LTGRAY);
-        root.addView(countText);
-
-        LinearLayout buttons = new LinearLayout(this);
-        buttons.setOrientation(LinearLayout.HORIZONTAL);
-        startButton = new Button(this);
-        startButton.setText("شروع Live");
-        startButton.setOnClickListener(v -> startDemo());
-        Button stop = new Button(this);
-        stop.setText("توقف");
-        stop.setOnClickListener(v -> stopDemo());
-        Button reset = new Button(this);
-        reset.setText("بازنشانی");
-        reset.setOnClickListener(v -> resetScan());
-        buttons.addView(startButton, new LinearLayout.LayoutParams(0, -2, 1));
-        buttons.addView(stop, new LinearLayout.LayoutParams(0, -2, 1));
-        buttons.addView(reset, new LinearLayout.LayoutParams(0, -2, 1));
-        root.addView(buttons);
-
-        root.addView(label("حافظه: یک بلوک موقت برای ساخت تصویر؛ پس از تولید، داده‌های عددی آن پاک می‌شوند. فقط MIN و MAX جاری در طول اسکن باقی می‌مانند.", 12, Color.rgb(190, 202, 215)));
-        root.addView(label("توجه: این نسخه برای بررسی رابط و رفتار تصویر از داده آزمایشی استفاده می‌کند؛ اتصال HC-05 و داده واقعی حسگرها هنوز در این نمونه فعال نیست.", 12, Color.rgb(255, 195, 100)));
+    private void showTab(String tab){
+        currentTab=tab;pageHost.removeAllViews();LinearLayout p=column();ScrollView sc=new ScrollView(this);sc.addView(p);pageHost.addView(sc);
+        p.addView(text(tab,22,Color.WHITE));
+        if(tab.equals("خانه")) home(p);
+        else if(tab.equals("سریال")) serial(p);
+        else if(tab.equals("عددی / Live")) numeric(p);
+        else if(tab.equals("خطی")) linear(p);
+        else if(tab.equals("ماتریسی")) matrixMode(p);
+        else if(tab.equals("تحلیل")) analysis(p);
     }
-
-    private TextView statBox(LinearLayout parent, String title, String value) {
-        LinearLayout box = new LinearLayout(this);
-        box.setOrientation(LinearLayout.VERTICAL);
-        box.setGravity(Gravity.CENTER);
-        box.setPadding(dp(3), dp(8), dp(3), dp(8));
-        box.setBackgroundColor(Color.rgb(28, 40, 55));
-        box.addView(label(title, 12, Color.LTGRAY));
-        TextView valueView = label(value, 19, Color.WHITE);
-        box.addView(valueView);
-        parent.addView(box, new LinearLayout.LayoutParams(0, dp(66), 1));
-        return valueView;
+    private void stats(LinearLayout p){
+        LinearLayout r=row();r.addView(stat("آخرین مقدار",valueText=text("—",18,Color.WHITE)));
+        r.addView(stat("MIN",minText=text("—",18,Color.WHITE)));r.addView(stat("MAX",maxText=text("—",18,Color.WHITE)));
+        p.addView(r);countText=text("تعداد داده: 0",12,Color.LTGRAY);p.addView(countText);
     }
-
-    private void startDemo() {
-        if (running) return;
-        running = true;
-        status.setText("● Live فعال — داده آزمایشی");
-        startButton.setEnabled(false);
-        handler.post(demoFeed);
+    private LinearLayout stat(String title,TextView value){
+        LinearLayout b=column();b.setGravity(Gravity.CENTER);b.setBackgroundColor(Color.rgb(29,42,58));b.addView(text(title,11,Color.LTGRAY));b.addView(value);
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,-2,1);lp.setMargins(dp(3),dp(3),dp(3),dp(3));b.setLayoutParams(lp);return b;
     }
-
-    private void stopDemo() {
-        running = false;
-        handler.removeCallbacks(demoFeed);
-        if (startButton != null) startButton.setEnabled(true);
-        if (status != null) status.setText("● متوقف شد");
+    private void home(LinearLayout p){
+        p.addView(text("پنل مرکزی دستگاه",17,Color.rgb(115,195,230)));
+        p.addView(text("ATmega128  •  HC-05 Bluetooth Classic / SPP\nچهار کانال FLC100 + یک کانال القایی",14,Color.WHITE));
+        stats(p);
+        p.addView(button("اتصال به دستگاه",()->showTab("سریال")));
+        p.addView(button("شروع نمایش Live",()->showTab("عددی / Live")));
+        p.addView(button("اسکن خطی",()->showTab("خطی")));
+        p.addView(button("اسکن ماتریسی",()->showTab("ماتریسی")));
+        p.addView(button("تحلیل کانال‌ها",()->showTab("تحلیل")));
+        p.addView(text("پروتکل: هر مقدار عددی در یک خط مستقل (۰ تا ۵۰۰۰). نشانگر مستقل a برای شروع/پایان بلوک اسکن ماتریسی.",12,Color.LTGRAY));
     }
-
-    private void resetScan() {
-        stopDemo();
-        minValue = Integer.MAX_VALUE; maxValue = Integer.MIN_VALUE;
-        latestValue = 0; blockCount = 0; blocksRendered = 0;
-        Arrays.fill(block, 0);
-        if (latestBitmap != null && !latestBitmap.isRecycled()) latestBitmap.recycle();
-        latestBitmap = null;
-        latestText.setText("—"); minText.setText("—"); maxText.setText("—");
-        countText.setText("بلوک‌های تولیدشده: 0");
-        renderEmptyBlock();
-        status.setText("● بازنشانی شد");
+    private void serial(LinearLayout p){
+        p.addView(text("دریافت سریال Bluetooth SPP",16,Color.WHITE));
+        p.addView(button("انتخاب دستگاه جفت‌شده و اتصال",()->chooseDevice()));
+        p.addView(button("قطع اتصال",()->disconnect()));
+        p.addView(text("ورود دستی برای تست دریافت:",13,Color.LTGRAY));
+        EditText e=new EditText(this);e.setSingleLine(true);e.setHint("عدد ۰ تا ۵۰۰۰ یا a");p.addView(e);
+        p.addView(button("ارسال به پردازشگر",()->{String s=e.getText().toString().trim();if(s.equalsIgnoreCase("a"))acceptLine("a");else try{acceptValue(Integer.parseInt(s));}catch(Exception ex){toast("مقدار نامعتبر است");}}));
+        serialLog=text("— هنوز داده‌ای دریافت نشده —",12,Color.rgb(180,205,220));serialLog.setGravity(Gravity.START);p.addView(serialLog);
+        p.addView(text("نرخ UART پیش‌فرض پروژه: 9600؛ دریافت SPP در قالب خط متنی.",12,Color.LTGRAY));
     }
-
-    private void acceptValue(int value) {
-        latestValue = value;
-        if (value < minValue) minValue = value;
-        if (value > maxValue) maxValue = value;
-        block[blockCount++] = value;
-
-        latestText.setText(String.valueOf(latestValue));
-        minText.setText(String.valueOf(minValue));
-        maxText.setText(String.valueOf(maxValue));
-
-        if (blockCount == blockSize) {
-            makeLatestImage();
-            Arrays.fill(block, 0);
-            blockCount = 0;
-            blocksRendered++;
-            countText.setText("بلوک‌های تولیدشده: " + blocksRendered);
-        }
+    private void numeric(LinearLayout p){
+        p.addView(text("نمایش عددی و Live",15,Color.rgb(115,195,230)));stats(p);
+        graph=new GraphView();p.addView(graph,new LinearLayout.LayoutParams(-1,dp(190)));
+        p.addView(text("با رسیدن هر عدد، مقدار و نمودار فوراً به‌روزرسانی می‌شوند. داده‌های نمودار فقط برای نمایش آخرین ۳۰۰ نمونه نگهداری می‌شوند.",12,Color.LTGRAY));
+        manualControls(p);
+        p.addView(button("پاک‌سازی داده‌های نمایشی",()->resetData()));
     }
-
-    private int colorFor(int value) {
-        if (maxValue == minValue) return Color.rgb(30, 140, 210);
-        float p = (value - minValue) / (float)(maxValue - minValue);
-        p = Math.max(0f, Math.min(1f, p));
-        return Color.HSVToColor(new float[]{240f - 240f * p, 0.95f, 0.98f});
+    private void linear(LinearLayout p){
+        p.addView(text("اسکن خطی — مسیر و تغییرات مقدار",15,Color.rgb(115,195,230)));stats(p);
+        graph=new GraphView();p.addView(graph,new LinearLayout.LayoutParams(-1,dp(230)));
+        p.addView(text("هر مقدار جدید به نقطه بعدی مسیر تبدیل می‌شود؛ نمودار با ورود هر داده تازه رسم می‌شود.",12,Color.LTGRAY));
+        manualControls(p);p.addView(button("شروع مسیر جدید",()->{history.clear();received=0;refreshStats();if(graph!=null)graph.invalidate();}));
     }
-
-    private void makeLatestImage() {
-        Bitmap next = Bitmap.createBitmap(cols, rows, Bitmap.Config.ARGB_8888);
-        for (int i = 0; i < blockSize; i++) next.setPixel(i % cols, i / cols, colorFor(block[i]));
-        Bitmap previous = latestBitmap;
-        latestBitmap = next;
-        if (previous != null && !previous.isRecycled()) previous.recycle();
-        scanView.invalidate();
+    private void matrixMode(LinearLayout p){
+        p.addView(text("نقشه رنگی ماتریسی ۱۶ × ۱۶",15,Color.rgb(115,195,230)));stats(p);
+        matrixView=new MatrixView();p.addView(matrixView,new LinearLayout.LayoutParams(-1,dp(310)));
+        p.addView(text("نشانگر a شروع/پایان اسکن ماتریسی است. هر مقدار جدید فوراً در خانه بعدی قرار می‌گیرد و تصویر همان لحظه رفرش می‌شود.",12,Color.LTGRAY));
+        manualControls(p);
+        p.addView(button("شروع / پایان ماتریس (a)",()->acceptLine("a")));
+        p.addView(button("پاک‌سازی ماتریس",()->{matrixCursor=0;Arrays.fill(matrix,0);if(matrixView!=null)matrixView.invalidate();}));
     }
-
-    private void renderEmptyBlock() {
-        latestBitmap = Bitmap.createBitmap(cols, rows, Bitmap.Config.ARGB_8888);
-        latestBitmap.eraseColor(Color.rgb(25, 40, 58));
-        if (scanView != null) scanView.invalidate();
+    private void analysis(LinearLayout p){
+        p.addView(text("تحلیل پنج کانال",15,Color.rgb(115,195,230)));stats(p);
+        for(int i=0;i<5;i++)p.addView(text(channelName(i)+" : "+channels[i],14,Color.WHITE));
+        p.addView(text("تخصیص مقادیر خطی ورودی به کانال‌ها به‌صورت چرخشی و نمایشی است؛ برای تفکیک قطعی کانال‌ها، قالب شناسه‌دار سمت میکروکنترلر باید تعریف شود.",12,Color.rgb(255,190,100)));
+        manualControls(p);
+        p.addView(button("صفر کردن کانال‌ها",()->{Arrays.fill(channels,0);channelCursor=0;showTab("تحلیل");}));
     }
-
-    private class ScanView extends View {
-        private final Paint paint = new Paint(Paint.FILTER_BITMAP_FLAG);
-        ScanView() { super(MainActivity.this); setBackgroundColor(Color.rgb(18, 28, 42)); }
-        @Override protected void onDraw(Canvas canvas) {
-            super.onDraw(canvas);
-            if (latestBitmap == null || latestBitmap.isRecycled()) return;
-            float side = Math.min(getWidth(), getHeight()) - dp(12);
-            float left = (getWidth() - side) / 2f;
-            float top = (getHeight() - side) / 2f;
-            canvas.drawBitmap(latestBitmap, null, new RectF(left, top, left + side, top + side), paint);
-        }
+    private String channelName(int i){return i<4?"FLC100 - CH"+(i+1):"Inductive Coil";}
+    private void manualControls(LinearLayout p){
+        p.addView(text("آزمایش دستی مقدار عددی (۰ تا ۵۰۰۰)",14,Color.WHITE));
+        EditText field=new EditText(this);field.setSingleLine(true);field.setInputType(2);field.setHint("مثلاً 2450");p.addView(field);
+        p.addView(button("ارسال مقدار",()->{try{int n=Integer.parseInt(field.getText().toString().trim());if(n<0||n>5000)throw new Exception();acceptValue(n);}catch(Exception ex){toast("فقط عدد صحیح بین ۰ تا ۵۰۰۰ وارد کنید");}}));
     }
-
-    @Override protected void onDestroy() {
-        stopDemo();
-        if (latestBitmap != null && !latestBitmap.isRecycled()) latestBitmap.recycle();
-        super.onDestroy();
+    private void acceptLine(String line){
+        if(line.trim().equalsIgnoreCase("a")){matrixActive=!matrixActive;appendLog(matrixActive?"a  → شروع اسکن ماتریسی":"a  → پایان اسکن ماتریسی");status.setText(matrixActive?"● اسکن ماتریسی فعال":"● اسکن ماتریسی پایان یافت");return;}
+        try{acceptValue(Integer.parseInt(line.trim()));}catch(Exception ignored){appendLog("داده نامعتبر: "+line);}
     }
+    private void acceptValue(int v){
+        if(v<0||v>5000)return;
+        received++;min=Math.min(min,v);max=Math.max(max,v);channels[channelCursor++%5]=v;
+        history.addLast(v);while(history.size()>300)history.removeFirst();
+        matrix[matrixCursor++%256]=v;
+        refreshStats();
+        if(graph!=null)graph.invalidate();if(matrixView!=null)matrixView.invalidate();
+        appendLog("RX  "+v);
+    }
+    private void refreshStats(){
+        if(valueText!=null)valueText.setText(String.valueOf(history.isEmpty()?"—":history.peekLast()));
+        if(minText!=null)minText.setText(min==Integer.MAX_VALUE?"—":String.valueOf(min));
+        if(maxText!=null)maxText.setText(max==Integer.MIN_VALUE?"—":String.valueOf(max));
+        if(countText!=null)countText.setText("تعداد داده: "+received);
+    }
+    private void resetData(){history.clear();Arrays.fill(matrix,0);Arrays.fill(channels,0);matrixCursor=0;channelCursor=0;received=0;min=Integer.MAX_VALUE;max=Integer.MIN_VALUE;refreshStats();if(graph!=null)graph.invalidate();if(matrixView!=null)matrixView.invalidate();}
+    private int colorFor(int v){if(max==Integer.MIN_VALUE||min==Integer.MAX_VALUE||max==min)return Color.rgb(35,135,205);float f=(v-min)/(float)(max-min);return Color.HSVToColor(new float[]{240f-240f*Math.max(0,Math.min(1,f)),.95f,.98f});}
+    private void appendLog(String s){if(serialLog!=null){String old=serialLog.getText().toString();serialLog.setText((s+"\n"+old).substring(0,Math.min(3500,(s+"\n"+old).length())));}}
+    private void chooseDevice(){
+        if(Build.VERSION.SDK_INT>=31&&checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.BLUETOOTH_CONNECT,Manifest.permission.BLUETOOTH_SCAN},REQ_BT);return;}
+        try{
+            BluetoothAdapter a=BluetoothAdapter.getDefaultAdapter();if(a==null){toast("Bluetooth در این گوشی موجود نیست");return;}
+            Set<BluetoothDevice> paired=a.getBondedDevices();if(paired.isEmpty()){toast("ابتدا HC-05 را از تنظیمات گوشی Pair کنید");return;}
+            ArrayList<BluetoothDevice> list=new ArrayList<>(paired);String[] labels=new String[list.size()];for(int i=0;i<list.size();i++)labels[i]=list.get(i).getName()+"  •  "+list.get(i).getAddress();
+            new AlertDialog.Builder(this).setTitle("دستگاه Bluetooth").setItems(labels,(d,w)->connect(list.get(w))).setNegativeButton("انصراف",null).show();
+        }catch(SecurityException e){toast("مجوز Bluetooth داده نشده است");}
+    }
+    private void connect(BluetoothDevice device){
+        disconnect();status.setText("● در حال اتصال...");
+        reader=new Thread(()->{try{
+            socket=device.createRfcommSocketToServiceRecord(UUID.fromString("00001101-0000-1000-8000-00805F9B34FB"));socket.connect();
+            InputStream in=socket.getInputStream();ui.post(()->status.setText("● متصل به "+device.getName()));
+            ByteArrayOutputStream line=new ByteArrayOutputStream();int b;
+            while(!Thread.currentThread().isInterrupted()&&(b=in.read())!=-1){if(b=='\n'||b=='\r'){if(line.size()>0){String s=line.toString("UTF-8").trim();line.reset();ui.post(()->acceptLine(s));}}else if(line.size()<128)line.write(b);}
+        }catch(Exception e){ui.post(()->status.setText("● اتصال قطع شد: "+e.getMessage()));}finally{try{if(socket!=null)socket.close();}catch(Exception ignored){}}});
+        reader.start();
+    }
+    private void disconnect(){try{if(reader!=null)reader.interrupt();if(socket!=null)socket.close();}catch(Exception ignored){}socket=null;reader=null;if(status!=null)status.setText("● Bluetooth: قطع");}
+    @Override public void onRequestPermissionsResult(int req,String[] p,int[] g){super.onRequestPermissionsResult(req,p,g);if(req==REQ_BT&&g.length>0&&g[0]==PackageManager.PERMISSION_GRANTED)chooseDevice();else toast("برای اتصال Bluetooth مجوز لازم است");}
+    private void toast(String s){Toast.makeText(this,s,Toast.LENGTH_SHORT).show();}
+    private class GraphView extends View{
+        Paint paint=new Paint(3);GraphView(){super(MainActivity.this);setBackgroundColor(Color.rgb(20,31,46));}
+        protected void onDraw(Canvas c){super.onDraw(c);float w=getWidth(),h=getHeight();paint.setColor(Color.rgb(65,82,103));paint.setStrokeWidth(1);for(int i=1;i<5;i++)c.drawLine(0,h*i/5,w,h*i/5,paint);if(history.size()<2)return;paint.setColor(Color.rgb(35,190,230));paint.setStrokeWidth(dp(2));float x=0,prevY=0;int i=0;for(int v:history){float y=h-(v/5000f)*h;if(i++>0)c.drawLine(x,prevY,(i-1)*w/Math.max(1,history.size()-1),y,paint);prevY=y;x=(i-1)*w/Math.max(1,history.size()-1);}}
+    }
+    private class MatrixView extends View{
+        Paint paint=new Paint(3);MatrixView(){super(MainActivity.this);setBackgroundColor(Color.rgb(17,27,41));}
+        protected void onDraw(Canvas c){super.onDraw(c);float cell=Math.min(getWidth(),getHeight())/16f;float left=(getWidth()-cell*16)/2,top=(getHeight()-cell*16)/2;for(int i=0;i<256;i++){paint.setColor(matrix[i]==0?Color.rgb(28,42,58):colorFor(matrix[i]));c.drawRect(left+(i%16)*cell,top+(i/16)*cell,left+(i%16+1)*cell-1,top+(i/16+1)*cell-1,paint);}}
+    }
+    @Override protected void onDestroy(){disconnect();super.onDestroy();}
 }
