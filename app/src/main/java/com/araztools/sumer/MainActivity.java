@@ -18,8 +18,8 @@ public class MainActivity extends Activity {
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final int[] matrix = new int[256];
     private final ArrayDeque<Integer> history = new ArrayDeque<>();
-    private final int[] channels = new int[5];
-    private int channelCursor = 0, matrixCursor = 0, min = Integer.MAX_VALUE, max = Integer.MIN_VALUE;
+    // Single numeric input stream from the scanner controller.
+    private int matrixCursor = 0, min = Integer.MAX_VALUE, max = Integer.MIN_VALUE;
     private long received = 0;
     private String currentTab = "خانه";
     private boolean matrixActive = false, demo = false;
@@ -75,13 +75,13 @@ public class MainActivity extends Activity {
     }
     private void home(LinearLayout p){
         p.addView(text("پنل مرکزی دستگاه",17,Color.rgb(115,195,230)));
-        p.addView(text("ATmega128  •  HC-05 Bluetooth Classic / SPP\nچهار کانال FLC100 + یک کانال القایی",14,Color.WHITE));
+        p.addView(text("ATmega128  •  HC-05 Bluetooth Classic / SPP\nیک کانال ورودی عددی واحد",14,Color.WHITE));
         stats(p);
         p.addView(button("اتصال به دستگاه",()->showTab("سریال")));
         p.addView(button("شروع نمایش Live",()->showTab("عددی / Live")));
         p.addView(button("اسکن خطی",()->showTab("خطی")));
         p.addView(button("اسکن ماتریسی",()->showTab("ماتریسی")));
-        p.addView(button("تحلیل کانال‌ها",()->showTab("تحلیل")));
+        p.addView(button("تحلیل سیگنال ورودی",()->showTab("تحلیل")));
         p.addView(text("پروتکل: هر مقدار عددی در یک خط مستقل (۰ تا ۵۰۰۰). نشانگر مستقل a برای شروع/پایان بلوک اسکن ماتریسی.",12,Color.LTGRAY));
     }
     private void serial(LinearLayout p){
@@ -118,13 +118,12 @@ public class MainActivity extends Activity {
         p.addView(button("پاک‌سازی ماتریس",()->{matrixCursor=0;Arrays.fill(matrix,0);if(matrixView!=null)matrixView.invalidate();}));
     }
     private void analysis(LinearLayout p){
-        p.addView(text("تحلیل پنج کانال",15,Color.rgb(115,195,230)));stats(p);
-        for(int i=0;i<5;i++)p.addView(text(channelName(i)+" : "+channels[i],14,Color.WHITE));
-        p.addView(text("تخصیص مقادیر خطی ورودی به کانال‌ها به‌صورت چرخشی و نمایشی است؛ برای تفکیک قطعی کانال‌ها، قالب شناسه‌دار سمت میکروکنترلر باید تعریف شود.",12,Color.rgb(255,190,100)));
+        p.addView(text("تحلیل سیگنال — تنها ورودی عددی دستگاه",15,Color.rgb(115,195,230)));stats(p);
+        p.addView(text("یک مسیر داده ورودی مشترک؛ نمایش MIN / MAX، مقدار لحظه‌ای، روند تغییرات و نقشه رنگی از همان جریان داده.",13,Color.WHITE));
+        graph=new GraphView();p.addView(graph,new LinearLayout.LayoutParams(-1,dp(210)));
         manualControls(p);
-        p.addView(button("صفر کردن کانال‌ها",()->{Arrays.fill(channels,0);channelCursor=0;showTab("تحلیل");}));
+        p.addView(button("بازنشانی تحلیل",()->resetData()));
     }
-    private String channelName(int i){return i<4?"FLC100 - CH"+(i+1):"Inductive Coil";}
     private void manualControls(LinearLayout p){
         p.addView(text("آزمایش دستی مقدار عددی (۰ تا ۵۰۰۰)",14,Color.WHITE));
         EditText field=new EditText(this);field.setSingleLine(true);field.setInputType(2);field.setHint("مثلاً 2450");p.addView(field);
@@ -136,7 +135,7 @@ public class MainActivity extends Activity {
     }
     private void acceptValue(int v){
         if(v<0||v>5000)return;
-        received++;min=Math.min(min,v);max=Math.max(max,v);channels[channelCursor++%5]=v;
+        received++;min=Math.min(min,v);max=Math.max(max,v);
         history.addLast(v);while(history.size()>300)history.removeFirst();
         matrix[matrixCursor++%256]=v;
         refreshStats();
@@ -149,7 +148,7 @@ public class MainActivity extends Activity {
         if(maxText!=null)maxText.setText(max==Integer.MIN_VALUE?"—":String.valueOf(max));
         if(countText!=null)countText.setText("تعداد داده: "+received);
     }
-    private void resetData(){history.clear();Arrays.fill(matrix,0);Arrays.fill(channels,0);matrixCursor=0;channelCursor=0;received=0;min=Integer.MAX_VALUE;max=Integer.MIN_VALUE;refreshStats();if(graph!=null)graph.invalidate();if(matrixView!=null)matrixView.invalidate();}
+    private void resetData(){history.clear();Arrays.fill(matrix,0);matrixCursor=0;received=0;min=Integer.MAX_VALUE;max=Integer.MIN_VALUE;refreshStats();if(graph!=null)graph.invalidate();if(matrixView!=null)matrixView.invalidate();}
     private int colorFor(int v){if(max==Integer.MIN_VALUE||min==Integer.MAX_VALUE||max==min)return Color.rgb(35,135,205);float f=(v-min)/(float)(max-min);return Color.HSVToColor(new float[]{240f-240f*Math.max(0,Math.min(1,f)),.95f,.98f});}
     private void appendLog(String s){if(serialLog!=null){String old=serialLog.getText().toString();serialLog.setText((s+"\n"+old).substring(0,Math.min(3500,(s+"\n"+old).length())));}}
     private void chooseDevice(){
