@@ -19,7 +19,7 @@ public class MainActivity extends Activity {
   private final ArrayDeque<Integer> samples=new ArrayDeque<>();
   private final ArrayList<String> logs=new ArrayList<>();
   private final int[] palette={0xff18bfff,0xff7c5cff,0xff20c997,0xffffb547,0xffef5b78};
-  private int accent=0xff18bfff, last=-1,min=5001,max=-1,baud=9600;
+  private int accent=0xff18bfff, last=-1,min=5001,max=-1,baud=9600,scanRows=10,scanCols=10;
   private boolean dark=true,feedbackSound=false,feedbackVibe=true,alertSound=false,alertVibe=false,autoRunning=false,matrixScanActive=false;
   private String tab="HOME",alertMode="MANUAL";
   private TextView status,brand;
@@ -34,8 +34,8 @@ public class MainActivity extends Activity {
   private int muted(){return dark?0xff9aacc2:0xff62748b;}
   private int line(){return dark?0xff263c57:0xffd2ddea;}
   private int dp(float n){return (int)(n*getResources().getDisplayMetrics().density+.5f);}
-  @Override public void onCreate(Bundle b){super.onCreate(b);android.content.SharedPreferences pref=getPreferences(0);dark=pref.getBoolean("dark",true);accent=pref.getInt("accent",0xff18bfff);feedbackSound=pref.getBoolean("feedbackSound",true);feedbackVibe=pref.getBoolean("feedbackVibe",true);alertSound=pref.getBoolean("alertSound",false);alertVibe=pref.getBoolean("alertVibe",false);baud=pref.getInt("baud",9600);getWindow().setNavigationBarColor(bg());getWindow().setStatusBarColor(bg());getWindow().getDecorView().setSystemUiVisibility(dark?0:View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);if(!pref.getBoolean("activated",false)){registration();}else shell();}
-  private void persistSettings(){getPreferences(0).edit().putBoolean("dark",dark).putInt("accent",accent).putBoolean("feedbackSound",feedbackSound).putBoolean("feedbackVibe",feedbackVibe).putBoolean("alertSound",alertSound).putBoolean("alertVibe",alertVibe).putInt("baud",baud).apply();}
+  @Override public void onCreate(Bundle b){super.onCreate(b);android.content.SharedPreferences pref=getPreferences(0);dark=pref.getBoolean("dark",true);accent=pref.getInt("accent",0xff18bfff);feedbackSound=pref.getBoolean("feedbackSound",true);feedbackVibe=pref.getBoolean("feedbackVibe",true);alertSound=pref.getBoolean("alertSound",false);alertVibe=pref.getBoolean("alertVibe",false);baud=pref.getInt("baud",9600);scanRows=pref.getInt("scanRows",10);scanCols=pref.getInt("scanCols",10);getWindow().setNavigationBarColor(bg());getWindow().setStatusBarColor(bg());getWindow().getDecorView().setSystemUiVisibility(dark?0:View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);if(!pref.getBoolean("activated",false)){registration();}else shell();}
+  private void persistSettings(){getPreferences(0).edit().putBoolean("dark",dark).putInt("accent",accent).putBoolean("feedbackSound",feedbackSound).putBoolean("feedbackVibe",feedbackVibe).putBoolean("alertSound",alertSound).putBoolean("alertVibe",alertVibe).putInt("baud",baud).putInt("scanRows",scanRows).putInt("scanCols",scanCols).apply();}
   private TextView txt(String s,int size,int color){TextView t=new TextView(this);t.setText(s);t.setTextSize(size);t.setTextColor(color);t.setGravity(Gravity.CENTER_VERTICAL);return t;}
   private GradientDrawable shape(int color,int stroke){GradientDrawable d=new GradientDrawable();d.setColor(color);d.setCornerRadius(dp(18));if(stroke!=0)d.setStroke(dp(1),stroke);return d;}
   private LinearLayout col(){LinearLayout l=new LinearLayout(this);l.setOrientation(1);return l;}
@@ -52,7 +52,7 @@ public class MainActivity extends Activity {
     TextView note=txt("Prototype registration: format validation only. Production license verification requires the license service.",11,muted());note.setPadding(dp(4),dp(12),dp(4),dp(12));page.addView(note);
     Button activate=btn("ACTIVATE  →");LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-1,dp(54));ap.topMargin=dp(8);page.addView(activate,ap);
     TextView error=txt("",13,0xffff647c);error.setGravity(Gravity.CENTER);page.addView(error);
-    activate.setOnClickListener(v->{tap();String s=input.getText().toString().trim().toUpperCase(Locale.US);if(s.matches("SUMER-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}")){getPreferences(0).edit().putBoolean("activated",true).putString("license",s).apply();shell();}else error.setText("Invalid serial format. Please check the code.");});
+    activate.setOnClickListener(v->{tap();String s=input.getText().toString().trim().toUpperCase(Locale.US);if(s.matches("SUMER-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}")){getPreferences(0).edit().putBoolean("activated",true).putString("license",s).apply();welcomeTune();shell();}else {error.setText("Invalid serial format. Please check the code.");vibrate(200);}});
   }
   private Button btn(String s){Button b=new Button(this);b.setText(s);b.setTextColor(0xffffffff);b.setAllCaps(false);b.setTextSize(14);b.setBackground(shape(accent,0));return b;}
   private TextView label(String s){TextView t=txt(s,12,muted());t.setPadding(dp(2),dp(10),dp(2),dp(5));return t;}
@@ -104,16 +104,34 @@ public class MainActivity extends Activity {
     Button pause=btn("CLEAR LIVE MIN / MAX");pause.setOnClickListener(v->{tap();min=5001;max=-1;show("LIVE");});content.addView(pause);
   }
   private void manual(){
-    content.addView(heading("MANUAL SURVEY"));content.addView(txt("Enter a single measurement or use the connected stream.",12,muted()));stats();
-    EditText field=new EditText(this);field.setSingleLine(true);field.setInputType(2);field.setHint("Value 0–5000");field.setTextColor(fg());field.setHintTextColor(muted());field.setBackground(shape(panel(),line()));pad(field,14);LinearLayout.LayoutParams fp=new LinearLayout.LayoutParams(-1,dp(58));fp.topMargin=dp(18);content.addView(field,fp);
-    Button add=btn("ADD MEASUREMENT");add.setOnClickListener(v->{tap();try{int n=Integer.parseInt(field.getText().toString());accept(n);field.setText("");show("MANUAL");}catch(Exception e){toast("Enter an integer from 0 to 5000");}});content.addView(add);
-    content.addView(heading("RECENT VALUES"));for(Integer n:samples){TextView t=txt("●     "+n,14,fg());t.setPadding(dp(12),dp(10),dp(12),dp(10));card(t);}
+    content.addView(heading("MANUAL SURVEY"));
+    content.addView(txt("Manual point-by-point acquisition and test input.",12,muted()));
+    stats();scanControls();testDataInput("MANUAL TEST DATA INPUT");
+    content.addView(heading("RECENT VALUES"));
+    for(Integer n:samples){TextView t=txt("●     "+n,14,fg());t.setPadding(dp(12),dp(10),dp(12),dp(10));card(t);}
+  }
+  private void scanControls(){
+    content.addView(heading("SCAN GRID"));
+    LinearLayout grid=row();EditText rowsField=numberField("Rows",scanRows);EditText colsField=numberField("Columns",scanCols);
+    grid.addView(rowsField,new LinearLayout.LayoutParams(0,dp(54),1));View gap=new View(this);grid.addView(gap,new LinearLayout.LayoutParams(dp(10),1));grid.addView(colsField,new LinearLayout.LayoutParams(0,dp(54),1));content.addView(grid);
+    Button save=btn("APPLY ROWS / COLUMNS");save.setOnClickListener(v->{tap();try{int r=Integer.parseInt(rowsField.getText().toString().trim()),c=Integer.parseInt(colsField.getText().toString().trim());if(r<1||r>50||c<1||c>50||r*c>2500)throw new Exception();scanRows=r;scanCols=c;persistSettings();toast("Grid set to "+r+" rows × "+c+" columns");}catch(Exception e){toast("Rows and columns must be 1–50");}});content.addView(save);
+    TextView dimensions=txt("ACTIVE GRID: "+scanRows+" × "+scanCols+"  •  "+(scanRows*scanCols)+" CELLS",11,accent);dimensions.setPadding(dp(4),dp(8),dp(4),dp(10));content.addView(dimensions);
+  }
+  private EditText numberField(String hint,int value){EditText e=new EditText(this);e.setSingleLine(true);e.setInputType(2);e.setText(""+value);e.setHint(hint);e.setTextColor(fg());e.setHintTextColor(muted());e.setBackground(shape(panel(),line()));pad(e,12);return e;}
+  private void testDataInput(String title){
+    content.addView(heading(title));LinearLayout panelBox=col();panelBox.setPadding(dp(12),dp(10),dp(12),dp(12));panelBox.setBackground(shape(panel(),line()));
+    panelBox.addView(txt("Enter a test reading (0–5000) as if it arrived from the scanner.",11,muted()));
+    EditText data=numberField("Received value",0);data.setText("");LinearLayout.LayoutParams dp1=new LinearLayout.LayoutParams(-1,dp(54));dp1.topMargin=dp(8);panelBox.addView(data,dp1);
+    Button inject=btn("INJECT TEST DATA");inject.setOnClickListener(v->{tap();try{int n=Integer.parseInt(data.getText().toString().trim());if(n<0||n>5000)throw new Exception();accept(n);data.setText("");toast("Test value received: "+n);}catch(Exception e){toast("Enter an integer from 0 to 5000");}});
+    LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(-1,dp(48));bp.topMargin=dp(8);panelBox.addView(inject,bp);card(panelBox);
   }
   private void automatic(){
-    content.addView(heading("AUTOMATIC SURVEY"));content.addView(txt("Automatic acquisition view. Start and stop the incoming stream display.",12,muted()));stats();
-    TextView state=txt(autoRunning?"●  ACQUISITION ACTIVE":"○  READY",17,autoRunning?0xff20c997:muted());state.setGravity(Gravity.CENTER);state.setBackground(shape(panel(),line()));LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,dp(88));p.topMargin=dp(20);content.addView(state,p);
+    content.addView(heading("AUTOMATIC SURVEY"));content.addView(txt("Automatic acquisition with a configurable scan grid.",12,muted()));stats();scanControls();
+    TextView state=txt(autoRunning?"●  ACQUISITION ACTIVE":"○  READY",17,autoRunning?0xff20c997:muted());state.setGravity(Gravity.CENTER);state.setBackground(shape(panel(),line()));
+    LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,dp(72));p.topMargin=dp(12);content.addView(state,p);
     Button b=btn(autoRunning?"STOP SESSION":"START SESSION");b.setOnClickListener(v->{tap();autoRunning=!autoRunning;show("AUTOMATIC");});content.addView(b);
-    content.addView(txt("This mode does not generate synthetic measurements; it displays actual incoming values only.",11,muted()));
+    testDataInput("MANUAL TEST DATA RECEIVER");
+    content.addView(txt("Test values enter the same display pipeline; no synthetic readings are generated automatically.",11,muted()));
   }
   private void pin(){
     content.addView(heading("PIN SURVEY"));content.addView(txt("Capture a point measurement and label its location.",12,muted()));stats();
@@ -184,6 +202,14 @@ public class MainActivity extends Activity {
   private void tap(){if(feedbackVibe)vibrate(18);if(feedbackSound)tone();}
   private void vibrate(int ms){try{android.os.Vibrator v=(android.os.Vibrator)getSystemService(VIBRATOR_SERVICE);if(v!=null){if(Build.VERSION.SDK_INT>=26)v.vibrate(VibrationEffect.createOneShot(ms,65));else v.vibrate(ms);}}catch(Exception ignored){}}
   private void tone(){try{android.media.ToneGenerator t=new android.media.ToneGenerator(android.media.AudioManager.STREAM_SYSTEM,35);t.startTone(android.media.ToneGenerator.TONE_PROP_BEEP,45);handler.postDelayed(t::release,100);}catch(Exception ignored){}}
+  private void welcomeTune(){
+    new Thread(()->{android.media.AudioTrack track=null;try{
+      final int rate=22050,total=rate*2;short[] pcm=new short[total];double[] notes={523.25,659.25,783.99,1046.50};
+      for(int i=0;i<total;i++){int segment=Math.min(3,i/(rate/2));double local=(i%(rate/2))/(double)rate;double envelope=Math.min(1.0,local*18.0)*Math.min(1.0,(0.5-local)*18.0);pcm[i]=(short)(Math.sin(2*Math.PI*notes[segment]*i/rate)*envelope*5000);}
+      track=new android.media.AudioTrack(android.media.AudioManager.STREAM_MUSIC,rate,android.media.AudioFormat.CHANNEL_OUT_MONO,android.media.AudioFormat.ENCODING_PCM_16BIT,total*2,android.media.AudioTrack.MODE_STATIC);
+      track.write(pcm,0,pcm.length);track.play();Thread.sleep(2050);
+    }catch(Exception ignored){}finally{if(track!=null)try{track.stop();track.release();}catch(Exception ignored){}}}).start();
+  }
   private void toast(String s){Toast.makeText(this,s,Toast.LENGTH_SHORT).show();}
   @Override public void onRequestPermissionsResult(int r,String[] p,int[] g){super.onRequestPermissionsResult(r,p,g);if(r==BT_REQ&&g.length>0&&g[0]==PackageManager.PERMISSION_GRANTED)chooseDevice();}
   @Override protected void onDestroy(){disconnect();super.onDestroy();}
