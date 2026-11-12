@@ -12,6 +12,7 @@ import android.view.*;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.*;
 import android.media.*;
+import android.speech.tts.*;
 import android.provider.MediaStore;
 import android.content.ContentValues;
 import android.net.Uri;
@@ -20,7 +21,7 @@ import java.util.*;
 
 public class MainActivity extends Activity {
   private final Handler handler=new Handler(Looper.getMainLooper());
-  private final ArrayDeque<Integer> samples=new ArrayDeque<>();
+  private TextToSpeech welcomeTts;
   private final ArrayList<Integer> activeScan=new ArrayList<>();
   private final ArrayList<Integer> lastScan=new ArrayList<>();
   private final ArrayList<String> logs=new ArrayList<>();
@@ -71,7 +72,7 @@ public class MainActivity extends Activity {
     TextView note=txt("One-time product registration. Enter the supplied SUMER serial number.",11,muted());note.setPadding(dp(4),dp(12),dp(4),dp(12));page.addView(note);
     Button activate=btn("ACTIVATE  →");LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-1,dp(54));ap.topMargin=dp(8);page.addView(activate,ap);
     TextView error=txt("",13,0xffff647c);error.setGravity(Gravity.CENTER);page.addView(error);
-    activate.setOnClickListener(v->{tap();String s=input.getText().toString().trim().toUpperCase(Locale.US);if(s.equals("13651365")){getPreferences(0).edit().putBoolean("activated",true).putString("license",s).apply();welcomeTune();shell();}else {error.setText("Invalid serial format. Please check the code.");vibrate(200);}});
+    activate.setOnClickListener(v->{tap();String s=input.getText().toString().trim().toUpperCase(Locale.US);if(s.equals("13651365")){getPreferences(0).edit().putBoolean("activated",true).putString("license",s).apply();startWelcomeExperience();shell();}else {error.setText("Invalid serial format. Please check the code.");vibrate(200);}});
   }
   private Button btn(String s){Button b=new Button(this);b.setText(s);b.setTextColor(0xffffffff);b.setAllCaps(false);b.setTextSize(14);b.setBackground(shape(accent,0));return b;}
   private TextView label(String s){TextView t=txt(s,12,muted());t.setPadding(dp(2),dp(10),dp(2),dp(5));return t;}
@@ -129,8 +130,6 @@ public class MainActivity extends Activity {
     galleryButton();
     stats();scanControls();scanTestButton();testDataInput("MANUAL TEST DATA INPUT");
     scanVisualization();
-    content.addView(heading("RECENT VALUES"));
-    for(Integer n:samples){TextView t=txt("●     "+n,14,fg());t.setPadding(dp(12),dp(10),dp(12),dp(10));card(t);}
   }
   private void scanControls(){
     content.addView(heading("SCAN GRID"));
@@ -222,10 +221,6 @@ public class MainActivity extends Activity {
     content.addView(label("CONNECTION"));
     addChoice("Baud rate",new String[]{"1200","2400","4800","9600","19200","38400","57600","115200"},baudIndex(),i->{int[] a={1200,2400,4800,9600,19200,38400,57600,115200};baud=a[i];persistSettings();updateStatus();});
     addChoice("Automatic reconnect",new String[]{"On","Off"},autoReconnect?0:1,i->{autoReconnect=i==0;persistSettings();});
-    Button testFeedback=btn("TEST TOUCH FEEDBACK");
-    testFeedback.setOnClickListener(v->{tap();toast("Touch feedback test complete");});content.addView(testFeedback);
-    Button testAlert=btn("TEST SIGNAL ALERT");
-    testAlert.setOnClickListener(v->{tap();if(alertVibe)vibrate(250);if(alertSound)tone();if(!alertVibe&&!alertSound)toast("Signal alert is disabled");});content.addView(testAlert);
     TextView about=txt("SUMER • MAGNETOMETRIC SURVEY SYSTEM\nSingle-channel prototype • Android",12,muted());about.setPadding(dp(4),dp(20),dp(4),dp(20));content.addView(about);
   }
   private int paletteIndex(){for(int i=0;i<palette.length;i++)if(palette[i]==accent)return i;return 0;}
@@ -262,7 +257,7 @@ public class MainActivity extends Activity {
     if(v<0||v>5000){toast("Value must be 0–5000");return;}
     last=v;min=Math.min(min,v);max=Math.max(max,v);
     if(matrixScanActive){int idx=activeScan.size();if(idx<scanRows*scanCols){activeScan.add(v);boolean endOfColumn=((idx+1)%scanRows)==0;signalAlert(endOfColumn?500:200);}}
-    if(!tab.equals("LIVE")){samples.addLast(v);while(samples.size()>300)samples.removeFirst();logs.add(0,String.format(Locale.US,"%tT   RX %d",new Date(),v));if(logs.size()>200)logs.remove(logs.size()-1);}
+    if(!tab.equals("LIVE")){logs.add(0,String.format(Locale.US,"%tT   RX %d",new Date(),v));if(logs.size()>200)logs.remove(logs.size()-1);}
     if(tab.equals("PIN"))updatePinSignal(v);
     if((alertSound||alertVibe)&&!matrixScanActive&& !tab.equals("PIN"))signalAlert(45);
     if(tab.equals("LIVE")||tab.equals("MANUAL")||tab.equals("AUTOMATIC")||tab.equals("PIN"))requestRefresh();
@@ -348,13 +343,78 @@ public class MainActivity extends Activity {
   private void playSquareTone(int frequency,int durationMs){new Thread(()->{AudioTrack track=null;try{int rate=22050,count=rate*durationMs/1000;short[] pcm=new short[count];int half=Math.max(1,rate/(2*Math.max(1,frequency)));for(int i=0;i<count;i++)pcm[i]=(short)((i/half%2==0?1:-1)*3500);track=new AudioTrack(AudioManager.STREAM_MUSIC,rate,AudioFormat.CHANNEL_OUT_MONO,AudioFormat.ENCODING_PCM_16BIT,count*2,AudioTrack.MODE_STATIC);track.write(pcm,0,count);track.play();Thread.sleep(durationMs+20);}catch(Exception ignored){}finally{if(track!=null)try{track.stop();track.release();}catch(Exception ignored){}}}).start();}
   private void vibrate(int ms){try{android.os.Vibrator v=(android.os.Vibrator)getSystemService(VIBRATOR_SERVICE);if(v!=null){if(Build.VERSION.SDK_INT>=26)v.vibrate(VibrationEffect.createOneShot(ms,65));else v.vibrate(ms);}}catch(Exception ignored){}}
   private void tone(){try{android.media.ToneGenerator t=new android.media.ToneGenerator(android.media.AudioManager.STREAM_SYSTEM,35);t.startTone(android.media.ToneGenerator.TONE_PROP_BEEP,45);handler.postDelayed(t::release,100);}catch(Exception ignored){}}
-  private void welcomeTune(){
-    new Thread(()->{android.media.AudioTrack track=null;try{
-      final int rate=22050,total=rate*2;short[] pcm=new short[total];double[] notes={523.25,659.25,783.99,1046.50};
-      for(int i=0;i<total;i++){int segment=Math.min(3,i/(rate/2));double local=(i%(rate/2))/(double)rate;double envelope=Math.min(1.0,local*18.0)*Math.min(1.0,(0.5-local)*18.0);pcm[i]=(short)(Math.sin(2*Math.PI*notes[segment]*i/rate)*envelope*5000);}
-      track=new android.media.AudioTrack(android.media.AudioManager.STREAM_MUSIC,rate,android.media.AudioFormat.CHANNEL_OUT_MONO,android.media.AudioFormat.ENCODING_PCM_16BIT,total*2,android.media.AudioTrack.MODE_STATIC);
-      track.write(pcm,0,pcm.length);track.play();Thread.sleep(2050);
-    }catch(Exception ignored){}finally{if(track!=null)try{track.stop();track.release();}catch(Exception ignored){}}}).start();
+  private void startWelcomeExperience(){
+    if(welcomeTts!=null){try{welcomeTts.stop();welcomeTts.shutdown();}catch(Exception ignored){}welcomeTts=null;}
+    welcomeTts=new TextToSpeech(this,statusCode->{
+      TextToSpeech tts=welcomeTts;
+      if(tts==null)return;
+      if(statusCode!=TextToSpeech.SUCCESS){tts.shutdown();welcomeTts=null;return;}
+      try{
+        int languageResult=tts.setLanguage(new Locale("fa","IR"));
+        if(languageResult==TextToSpeech.LANG_MISSING_DATA||languageResult==TextToSpeech.LANG_NOT_SUPPORTED){
+          languageResult=tts.setLanguage(new Locale("fa"));
+        }
+        if(languageResult==TextToSpeech.LANG_MISSING_DATA||languageResult==TextToSpeech.LANG_NOT_SUPPORTED){
+          toast("Persian voice is not installed. Install a Persian TTS voice in Android settings.");
+          tts.shutdown();welcomeTts=null;return;
+        }
+        Voice female=null;
+        if(Build.VERSION.SDK_INT>=21&&tts.getVoices()!=null){
+          for(Voice voice:tts.getVoices()){
+            if(!"fa".equalsIgnoreCase(voice.getLocale().getLanguage()))continue;
+            String details=(voice.getName()+" "+voice.getFeatures()).toLowerCase(Locale.US);
+            if(details.contains("female")||details.contains("woman")||details.contains("feminine")){
+              female=voice;break;
+            }
+          }
+        }
+        if(female!=null)tts.setVoice(female);
+        tts.setSpeechRate(0.91f);
+        tts.setPitch(1.04f);
+        tts.setOnUtteranceProgressListener(new UtteranceProgressListener(){
+          @Override public void onStart(String id){}
+          @Override public void onDone(String id){handler.post(()->{if(welcomeTts==tts){tts.shutdown();welcomeTts=null;}});}
+          @Override public void onError(String id){handler.post(()->{if(welcomeTts==tts){tts.shutdown();welcomeTts=null;}});}
+        });
+        playWelcomeMusicFiveSeconds();
+        HashMap<String,String> params=new HashMap<>();
+        params.put(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID,"sumer_welcome");
+        tts.speak("به دنیای اکتشافات خوش آمدید",TextToSpeech.QUEUE_FLUSH,params);
+      }catch(Exception e){
+        try{tts.shutdown();}catch(Exception ignored){}
+        if(welcomeTts==tts)welcomeTts=null;
+      }
+    });
+  }
+  private void playWelcomeMusicFiveSeconds(){
+    new Thread(()->{
+      AudioTrack track=null;
+      try{
+        final int rate=22050,total=rate*5;
+        short[] pcm=new short[total];
+        double[] chord={130.81,164.81,196.00,261.63};
+        double[] chimes={392.00,523.25,659.25,783.99};
+        for(int i=0;i<total;i++){
+          double time=i/(double)rate;
+          double fade=Math.min(1.0,time*2.5)*Math.min(1.0,(5.0-time)*2.0);
+          double pad=0;
+          for(double hz:chord)pad+=Math.sin(2*Math.PI*hz*time)*0.16;
+          double bell=0;
+          for(int k=0;k<chimes.length;k++){
+            double start=0.45+k*1.05,dt=time-start;
+            if(dt>=0&&dt<0.75)bell+=Math.sin(2*Math.PI*chimes[k]*dt)*Math.exp(-dt*4.2)*0.24;
+          }
+          double sample=(pad+bell)*fade*0.23;
+          pcm[i]=(short)(Math.max(-1,Math.min(1,sample))*32767);
+        }
+        track=new AudioTrack(AudioManager.STREAM_MUSIC,rate,AudioFormat.CHANNEL_OUT_MONO,AudioFormat.ENCODING_PCM_16BIT,total*2,AudioTrack.MODE_STATIC);
+        track.setVolume(0.55f);
+        track.write(pcm,0,pcm.length);
+        track.play();
+        Thread.sleep(5000);
+      }catch(Exception ignored){}
+      finally{if(track!=null)try{track.stop();track.release();}catch(Exception ignored){}}
+    },"SUMER-Welcome-Music").start();
   }
 
   private boolean refreshPending=false;
