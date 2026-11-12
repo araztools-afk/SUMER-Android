@@ -8,11 +8,12 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.araztools.s1"
+        // Separate package keeps the successfully installed S1 baseline intact.
+        applicationId = "com.araztools.sumer.matrix"
         minSdk = 23
         targetSdk = 28
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1-matrix-single-channel"
     }
 
     compileOptions {
