@@ -16,5 +16,4 @@
                           M78,36 L66,36 L66,66 L78,66 M66,51 L76,51
                           M85,66 L85,36 L94,36 C103,36 103,50 94,51 L85,51 M92,51 L101,66"/>
     <path android:fillColor="#18BFFF" android:pathData="M8,78 L100,78 L100,82 L8,82 Z"/>
-    <circle android:fillColor="#18BFFF" android:cx="54" android:cy="91" android:r="3"/>
 </vector>
