@@ -6,6 +6,7 @@ import android.bluetooth.*;
 import android.content.*;
 import android.content.pm.PackageManager;
 import android.graphics.*;
+import android.graphics.drawable.GradientDrawable;
 import android.os.*;
 import android.view.*;
 import android.view.inputmethod.InputMethodManager;
