@@ -40,6 +40,11 @@ public class MainActivity extends Activity {
   private LinearLayout root,content,bottom;
   private BluetoothSocket socket;
   private Thread reader;
+  private final ArrayList<BluetoothDevice> discoveredDevices=new ArrayList<>();
+  private final ArrayList<String> discoveredLabels=new ArrayList<>();
+  private ArrayAdapter<String> discoveredAdapter;
+  private AlertDialog discoveryDialog;
+  private BroadcastReceiver discoveryReceiver;
   private static final int BT_REQ=71;
   private int bg(){return dark?0xff242a30:0xffeef3f9;}
   private int panel(){return dark?0xff303840:0xffffffff;}
@@ -223,7 +228,7 @@ public class MainActivity extends Activity {
   }
   private void device(){
     content.addView(heading("DEVICE CONNECTION"));content.addView(txt("Bluetooth Classic / SPP • paired devices",12,muted()));
-    Button c=btn("SELECT PAIRED BLUETOOTH DEVICE");c.setOnClickListener(v->{tap();chooseDevice();});content.addView(c);
+    Button c=btn("SEARCH / SELECT BLUETOOTH DEVICE");c.setOnClickListener(v->{tap();chooseDevice();});content.addView(c);
     Button d=btn("DISCONNECT");d.setOnClickListener(v->{tap();disconnect();});content.addView(d);
     addChoice("Baud rate",new String[]{"1200","2400","4800","9600","19200","38400","57600","115200"},baudIndex(),i->{int[] a={1200,2400,4800,9600,19200,38400,57600,115200};baud=a[i];persistSettings();updateStatus();});
     content.addView(txt("Pair the scanner in Android Bluetooth settings first. The baud selection is a project setting and must match the transmitter configuration.",11,muted()));
@@ -247,7 +252,45 @@ public class MainActivity extends Activity {
     if(s.trim().equalsIgnoreCase("a")){if(matrixScanActive){finishMatrixScan();}else{matrixScanActive=true;activeScan.clear();lastScan.clear();if(!tab.equals("LIVE"))logs.add(0,"MATRIX SCAN START");}if(tab.equals("MANUAL")||tab.equals("AUTOMATIC")||tab.equals("PIN"))show(tab);return;}
     try{accept(Integer.parseInt(s.trim()));}catch(Exception e){if(!tab.equals("LIVE")){logs.add(0,"INVALID  "+s);if(logs.size()>200)logs.remove(logs.size()-1);}}
   }
-  private void chooseDevice(){if(Build.VERSION.SDK_INT>=31&&checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.BLUETOOTH_CONNECT,Manifest.permission.BLUETOOTH_SCAN},BT_REQ);return;}try{BluetoothAdapter a=BluetoothAdapter.getDefaultAdapter();if(a==null){toast("Bluetooth unavailable");return;}ArrayList<BluetoothDevice> list=new ArrayList<>(a.getBondedDevices());if(list.isEmpty()){toast("Pair the device in Android settings first");return;}String[] names=new String[list.size()];for(int i=0;i<list.size();i++)names[i]=list.get(i).getName()+" • "+list.get(i).getAddress();new AlertDialog.Builder(this).setTitle("Paired devices").setItems(names,(x,n)->connect(list.get(n))).setNegativeButton("Cancel",null).show();}catch(Exception e){toast("Bluetooth permission required");}}
+  private void chooseDevice(){searchDevices();}
+  @SuppressWarnings("MissingPermission") private void searchDevices(){
+    if(Build.VERSION.SDK_INT>=31&&(checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT)!=PackageManager.PERMISSION_GRANTED||checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN)!=PackageManager.PERMISSION_GRANTED)){
+      requestPermissions(new String[]{Manifest.permission.BLUETOOTH_CONNECT,Manifest.permission.BLUETOOTH_SCAN},BT_REQ);return;
+    }
+    try{
+      BluetoothAdapter adapter=BluetoothAdapter.getDefaultAdapter();
+      if(adapter==null){toast("Bluetooth unavailable");return;}
+      if(!adapter.isEnabled()){toast("Turn on Bluetooth first");return;}
+      stopDiscovery();
+      discoveredDevices.clear();discoveredLabels.clear();
+      for(BluetoothDevice d:adapter.getBondedDevices())addDiscovered(d,"PAIRED");
+      discoveredAdapter=new ArrayAdapter<>(this,android.R.layout.simple_list_item_1,discoveredLabels);
+      discoveryDialog=new AlertDialog.Builder(this).setTitle("Bluetooth devices — searching").setAdapter(discoveredAdapter,(dialog,which)->{
+        BluetoothDevice selected=discoveredDevices.get(which);stopDiscovery();connect(selected);
+      }).setNegativeButton("Close",(dialog,which)->stopDiscovery()).create();
+      discoveryDialog.setOnDismissListener(d->{stopDiscovery();});
+      discoveryDialog.show();
+      discoveryReceiver=new BroadcastReceiver(){@Override public void onReceive(Context context,Intent intent){
+        String action=intent.getAction();
+        if(BluetoothDevice.ACTION_FOUND.equals(action)){
+          BluetoothDevice d=intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
+          if(d!=null)addDiscovered(d,"FOUND");
+        }else if(BluetoothAdapter.ACTION_DISCOVERY_FINISHED.equals(action)){
+          if(discoveryDialog!=null&&discoveryDialog.isShowing())discoveryDialog.setTitle("Bluetooth devices — search complete");
+          stopDiscoveryReceiverOnly();
+        }
+      }};
+      IntentFilter filter=new IntentFilter();filter.addAction(BluetoothDevice.ACTION_FOUND);filter.addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED);
+      if(Build.VERSION.SDK_INT>=33)registerReceiver(discoveryReceiver,filter,Context.RECEIVER_EXPORTED);else registerReceiver(discoveryReceiver,filter);
+      adapter.startDiscovery();toast("Searching for nearby Bluetooth devices…");
+      handler.postDelayed(()->{try{if(adapter.isDiscovering())adapter.cancelDiscovery();if(discoveryDialog!=null&&discoveryDialog.isShowing())discoveryDialog.setTitle("Bluetooth devices — search complete");}catch(Exception ignored){}stopDiscoveryReceiverOnly();},12000);
+    }catch(Exception e){toast("Bluetooth search failed: "+e.getMessage());}
+  }
+  @SuppressWarnings("MissingPermission") private void addDiscovered(BluetoothDevice d,String tag){
+    try{String address=d.getAddress();for(BluetoothDevice old:discoveredDevices)if(old.getAddress().equals(address))return;discoveredDevices.add(d);String name=d.getName();discoveredLabels.add((name==null||name.isEmpty()?"Bluetooth device":name)+" • "+address+" • "+tag);if(discoveredAdapter!=null)discoveredAdapter.notifyDataSetChanged();}catch(Exception ignored){}
+  }
+  private void stopDiscoveryReceiverOnly(){if(discoveryReceiver!=null){try{unregisterReceiver(discoveryReceiver);}catch(Exception ignored){}discoveryReceiver=null;}}
+  @SuppressWarnings("MissingPermission") private void stopDiscovery(){try{BluetoothAdapter a=BluetoothAdapter.getDefaultAdapter();if(a!=null&&a.isDiscovering())a.cancelDiscovery();}catch(Exception ignored){}stopDiscoveryReceiverOnly();}
   private void connect(BluetoothDevice dev){
     reconnectEnabled=true;lastDeviceAddress=dev.getAddress();getPreferences(0).edit().putString("lastDeviceAddress",lastDeviceAddress).apply();
     disconnectSocketOnly();status.setText("● CONNECTING…");
@@ -309,6 +352,6 @@ public class MainActivity extends Activity {
   private void sendLine(String value){try{if(socket==null||!socket.isConnected()){toast("Device is not connected");return;}OutputStream out=socket.getOutputStream();out.write((value+System.lineSeparator()).getBytes("UTF-8"));out.flush();}catch(Exception e){toast("Send failed: "+e.getMessage());}}
 
   private void toast(String s){Toast.makeText(this,s,Toast.LENGTH_SHORT).show();}
-  @Override public void onRequestPermissionsResult(int r,String[] p,int[] g){super.onRequestPermissionsResult(r,p,g);if(r==BT_REQ&&g.length>0&&g[0]==PackageManager.PERMISSION_GRANTED){if(lastDeviceAddress.isEmpty())chooseDevice();else connectAddress(lastDeviceAddress);}}
-  @Override protected void onDestroy(){disconnect();super.onDestroy();}
+  @Override public void onRequestPermissionsResult(int r,String[] p,int[] g){super.onRequestPermissionsResult(r,p,g);if(r==BT_REQ&&g.length>=2&&g[0]==PackageManager.PERMISSION_GRANTED&&g[1]==PackageManager.PERMISSION_GRANTED)searchDevices();}
+  @Override protected void onDestroy(){stopDiscovery();disconnect();super.onDestroy();}
 }
