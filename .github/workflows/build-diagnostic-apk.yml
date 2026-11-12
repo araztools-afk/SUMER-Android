@@ -1,4 +1,4 @@
-name: Build SUMER diagnostic APK
+name: Build SUMER Live Preview APK
 
 on:
   push:
@@ -42,17 +42,17 @@ jobs:
           APK="app/build/outputs/apk/debug/app-debug.apk"
           test -s "$APK"
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | tee apk-badging.txt
-          grep -q "package: name='com.araztools.sumer.installtest'" apk-badging.txt
+          grep -q "package: name='com.araztools.sumer.livepreview'" apk-badging.txt
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
           sha256sum "$APK" | tee apk-sha256.txt
-          cp "$APK" SUMER-Install-Diagnostic.apk
+          cp "$APK" SUMER-Live-Preview.apk
 
       - name: Upload verified APK
         uses: actions/upload-artifact@v4
         with:
-          name: SUMER-Install-Diagnostic
+          name: SUMER-Live-Preview
           path: |
-            SUMER-Install-Diagnostic.apk
+            SUMER-Live-Preview.apk
             apk-badging.txt
             apk-sha256.txt
           if-no-files-found: error
