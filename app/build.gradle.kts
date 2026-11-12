@@ -8,12 +8,12 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        // Unique package ID so this Live preview installs beside S1.
+        // Keep a separate package id so this preview can install alongside the earlier S1 prototype.
         applicationId = "com.araztools.sumer.livepreview"
         minSdk = 23
         targetSdk = 28
-        versionCode = 2
-        versionName = "1.1-live-preview"
+        versionCode = 3
+        versionName = "SUMER1"
     }
 
     compileOptions {
