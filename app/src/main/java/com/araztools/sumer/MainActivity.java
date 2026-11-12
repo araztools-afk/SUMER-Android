@@ -20,7 +20,7 @@ public class MainActivity extends Activity {
   private final ArrayList<String> logs=new ArrayList<>();
   private final int[] palette={0xff18bfff,0xff7c5cff,0xff20c997,0xffffb547,0xffef5b78};
   private int accent=0xff18bfff, last=-1,min=5001,max=-1,baud=9600;
-  private boolean dark=true,feedbackSound=false,feedbackVibe=true,alertSound=false,alertVibe=false,autoRunning=false;
+  private boolean dark=true,feedbackSound=false,feedbackVibe=true,alertSound=false,alertVibe=false,autoRunning=false,matrixScanActive=false;
   private String tab="HOME",alertMode="MANUAL";
   private TextView status,brand;
   private LinearLayout root,content,bottom;
@@ -152,9 +152,33 @@ public class MainActivity extends Activity {
     Button clear=btn("CLEAR LOG");clear.setOnClickListener(v->{tap();logs.clear();show("TERMINAL");});content.addView(clear);
   }
   private void accept(int v){if(v<0||v>5000){toast("Value must be 0–5000");return;}last=v;min=Math.min(min,v);max=Math.max(max,v);if(!tab.equals("LIVE")){samples.addLast(v);while(samples.size()>300)samples.removeFirst();logs.add(0,String.format(Locale.US,"%tT   %d",new Date(),v));if(logs.size()>200)logs.remove(logs.size()-1);}if(alertSound||alertVibe){if(alertSound)tone();if(alertVibe)vibrate(45);}if(tab.equals("LIVE")||tab.equals("MANUAL")||tab.equals("AUTOMATIC"))show(tab);}
-  private void acceptLine(String s){if(s.trim().equalsIgnoreCase("a")){if(!tab.equals("LIVE"))logs.add(0,"SCAN MARKER  a");return;}try{accept(Integer.parseInt(s.trim()));}catch(Exception e){if(!tab.equals("LIVE"))logs.add(0,"INVALID  "+s);}}
+  private void acceptLine(String s){if(s.trim().equalsIgnoreCase("a")){matrixScanActive=!matrixScanActive;if(!tab.equals("LIVE"))logs.add(0,matrixScanActive?"MATRIX SCAN START":"MATRIX SCAN END");return;}try{accept(Integer.parseInt(s.trim()));}catch(Exception e){if(!tab.equals("LIVE"))logs.add(0,"INVALID  "+s);}}
   private void chooseDevice(){if(Build.VERSION.SDK_INT>=31&&checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.BLUETOOTH_CONNECT,Manifest.permission.BLUETOOTH_SCAN},BT_REQ);return;}try{BluetoothAdapter a=BluetoothAdapter.getDefaultAdapter();if(a==null){toast("Bluetooth unavailable");return;}ArrayList<BluetoothDevice> list=new ArrayList<>(a.getBondedDevices());if(list.isEmpty()){toast("Pair the device in Android settings first");return;}String[] names=new String[list.size()];for(int i=0;i<list.size();i++)names[i]=list.get(i).getName()+" • "+list.get(i).getAddress();new AlertDialog.Builder(this).setTitle("Paired devices").setItems(names,(x,n)->connect(list.get(n))).setNegativeButton("Cancel",null).show();}catch(Exception e){toast("Bluetooth permission required");}}
-  private void connect(BluetoothDevice dev){disconnect();status.setText("● CONNECTING…");reader=new Thread(()->{try{socket=dev.createRfcommSocketToServiceRecord(UUID.fromString("00001101-0000-1000-8000-00805F9B34FB"));socket.connect();InputStream in=socket.getInputStream();handler.post(()->{status.setText("● CONNECTED  •  "+dev.getName()+"  •  "+baud);});ByteArrayOutputStream line=new ByteArrayOutputStream();int b;while((b=in.read())!=-1){if(b==10||b==13){if(line.size()>0){String s=line.toString("UTF-8").trim();line.reset();handler.post(()->acceptLine(s));}}else if(line.size()<128)line.write(b);}}catch(Exception e){handler.post(()->{status.setText("● CONNECTION LOST");toast(e.getMessage()==null?"Connection failed":e.getMessage());});}finally{try{if(socket!=null)socket.close();}catch(Exception ignored){}}});reader.start();}
+  private void connect(BluetoothDevice dev){
+    disconnect();status.setText("● CONNECTING…");
+    final BluetoothSocket localSocket;
+    try{localSocket=dev.createRfcommSocketToServiceRecord(UUID.fromString("00001101-0000-1000-8000-00805F9B34FB"));socket=localSocket;}
+    catch(Exception e){status.setText("● CONNECTION FAILED");toast(e.getMessage()==null?"Connection failed":e.getMessage());return;}
+    reader=new Thread(()->{
+      try{
+        localSocket.connect();
+        if(socket!=localSocket){localSocket.close();return;}
+        InputStream in=localSocket.getInputStream();
+        handler.post(()->{if(socket==localSocket)status.setText("● CONNECTED  •  "+dev.getName()+"  •  "+baud);});
+        ByteArrayOutputStream line=new ByteArrayOutputStream();int b;
+        while(!Thread.currentThread().isInterrupted()&&(b=in.read())!=-1){
+          if(b==10||b==13){
+            if(line.size()>0){String value=line.toString("UTF-8").trim();line.reset();handler.post(()->{if(socket==localSocket)acceptLine(value);});}
+          }else if(line.size()<128)line.write(b);
+        }
+      }catch(Exception e){
+        handler.post(()->{if(socket==localSocket){status.setText("● CONNECTION LOST");toast(e.getMessage()==null?"Connection failed":e.getMessage());}});
+      }finally{
+        try{localSocket.close();}catch(Exception ignored){}
+        if(socket==localSocket)socket=null;
+      }
+    });reader.start();
+  }
   private void disconnect(){try{if(reader!=null)reader.interrupt();if(socket!=null)socket.close();}catch(Exception ignored){}socket=null;reader=null;updateStatus();}
   private void updateStatus(){if(status!=null)status.setText("●  DEVICE DISCONNECTED     •     "+baud+" BAUD");}
   private void tap(){if(feedbackVibe)vibrate(18);if(feedbackSound)tone();}
