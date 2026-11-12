@@ -38,8 +38,8 @@ This release candidate consolidates the software requirements from the SUMER des
 - Completed scans are saved as PNG and CSV in the app's SUMER gallery. PNG images can be exported to Pictures/SUMER.
 
 ### Bluetooth and terminal
-- Bluetooth Classic / SPP connection to paired devices such as HC-05.
-- Last selected device can be reconnected automatically when enabled.
+- Bluetooth Classic / SPP discovery of nearby devices plus paired-device selection (including HC-05).
+- Last selected device can be reconnected automatically when enabled; the device search dialog shows paired and newly discovered devices.
 - The terminal shows received lines and can send a text command/value back over SPP.
 - Input protocol currently supported by the app: one integer per line, 0–5000; standalone `a` toggles matrix scan start/end.
 - Baud selection is a saved project setting only. It does not remotely change the HC-05 UART setting.
