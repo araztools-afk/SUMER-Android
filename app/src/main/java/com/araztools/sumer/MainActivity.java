@@ -55,7 +55,7 @@ public class MainActivity extends Activity {
         for(String tab:tabs){Button b=new Button(this);b.setText(tab);b.setTextSize(11);b.setPadding(dp(5),0,dp(5),0);b.setOnClickListener(v->showTab(tab));nav.addView(b);}
     }
     private void showTab(String tab){
-        currentTab=tab;pageHost.removeAllViews();LinearLayout p=column();ScrollView sc=new ScrollView(this);sc.addView(p);pageHost.addView(sc);
+        currentTab=tab;graph=null;matrixView=null;pageHost.removeAllViews();LinearLayout p=column();ScrollView sc=new ScrollView(this);sc.addView(p);pageHost.addView(sc);
         p.addView(text(tab,22,Color.WHITE));
         if(tab.equals("خانه")) home(p);
         else if(tab.equals("سریال")) serial(p);
