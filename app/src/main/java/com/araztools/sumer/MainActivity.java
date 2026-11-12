@@ -188,19 +188,19 @@ public class MainActivity extends Activity {
     ArrayList<Integer> values=scanDisplayValues();
     int lo=5000,hi=0;for(int v:values){lo=Math.min(lo,v);hi=Math.max(hi,v);}
     if(values.isEmpty()){lo=0;hi=5000;}
+    final ArrayList<Integer> data=values;final int low=lo,high=hi;final int[] bounds=scanBounds(data,scanRows,scanCols);final int displayRows=data.isEmpty()?scanRows:bounds[1]-bounds[0]+1;final int displayCols=data.isEmpty()?scanCols:bounds[3]-bounds[2]+1;
     content.addView(heading("SCAN COLOUR MAP • "+values.size()+" / "+(scanRows*scanCols)+" VALUES"));
-    content.addView(txt("MIN "+(values.isEmpty()?"—":lo)+"   MAX "+(values.isEmpty()?"—":hi)+"   GRID "+scanRows+" × "+scanCols+"   •   ZIGZAG FROM BOTTOM-LEFT",11,muted()));
-    final ArrayList<Integer> data=values;final int low=lo,high=hi;
+    content.addView(txt("MIN "+(values.isEmpty()?"—":lo)+"   MAX "+(values.isEmpty()?"—":hi)+"   GRID "+displayRows+" × "+displayCols+"   •   ZIGZAG FROM BOTTOM-LEFT",11,muted()));
     View map;
     if("AI".equals(scanViewMode)){
-      final Bitmap heatmap=data.isEmpty()?null:createAiHeatmap(data,scanRows,scanCols,low,high);
+      final Bitmap heatmap=data.isEmpty()?null:createAiHeatmap(data,displayRows,displayCols,bounds[0],bounds[2],low,high);
       map=new View(this){
-        protected void onMeasure(int ws,int hs){int width=MeasureSpec.getSize(ws);float cell=Math.min(width/(float)scanCols,dp(500)/(float)scanRows);setMeasuredDimension(width,(int)(cell*scanRows));}
+        protected void onMeasure(int ws,int hs){int width=MeasureSpec.getSize(ws);float cell=Math.min(width/(float)displayCols,dp(500)/(float)displayRows);setMeasuredDimension(width,(int)(cell*displayRows));}
         protected void onDraw(Canvas canvas){
-          super.onDraw(canvas);float cell=Math.min(getWidth()/(float)scanCols,dp(500)/(float)scanRows);float offset=(getWidth()-cell*scanCols)/2;
+          super.onDraw(canvas);float cell=Math.min(getWidth()/(float)displayCols,dp(500)/(float)displayRows);float offset=(getWidth()-cell*displayCols)/2;
           if(heatmap==null){Paint wait=new Paint(3);wait.setColor(muted());wait.setTextSize(dp(13));wait.setTextAlign(Paint.Align.CENTER);canvas.drawText(tr("INTERPOLATION • WAITING FOR DATA"),getWidth()/2f,getHeight()/2f,wait);return;}
           Paint smooth=new Paint(Paint.ANTI_ALIAS_FLAG|Paint.FILTER_BITMAP_FLAG);smooth.setFilterBitmap(true);
-          canvas.drawBitmap(heatmap,null,new RectF(offset,0,offset+cell*scanCols,cell*scanRows),smooth);
+          canvas.drawBitmap(heatmap,null,new RectF(offset,0,offset+cell*displayCols,cell*displayRows),smooth);
         }
       };
       map.setBackgroundColor(panel());
@@ -233,14 +233,16 @@ public class MainActivity extends Activity {
     content.addView(heading("SCAN GRAPH"));
     View chart=new View(this){protected void onDraw(Canvas canvas){super.onDraw(canvas);float w=getWidth(),h=getHeight();if(w<=0||h<=0)return;Paint p=new Paint(3);p.setColor(line());p.setStrokeWidth(dp(1));for(int i=1;i<4;i++)canvas.drawLine(0,h*i/4,w,h*i/4,p);p.setColor(accent);p.setStrokeWidth(dp(2));p.setStyle(Paint.Style.STROKE);Path path=new Path();for(int i=0;i<data.size();i++){float x=data.size()==1?w/2:(w-8)*i/(data.size()-1)+4;float y=h-4-(data.get(i)/5000f)*(h-8);if(i==0)path.moveTo(x,y);else path.lineTo(x,y);}canvas.drawPath(path,p);p.setStyle(Paint.Style.FILL);}};
     chart.setBackground(shape(panel(),line()));LinearLayout.LayoutParams chartP=new LinearLayout.LayoutParams(-1,dp(150));chartP.bottomMargin=dp(14);content.addView(chart,chartP);
+    Button preview3d=btn("GENERATE 3D SURFACE");preview3d.setOnClickListener(v->{tap();if(values.size()<4){toast("At least four measured points are needed for a 3D surface");return;}Bitmap surface=renderPerspectiveScan(values,scanRows,scanCols);ImageView image=new ImageView(this);image.setImageBitmap(surface);image.setAdjustViewBounds(true);image.setScaleType(ImageView.ScaleType.FIT_CENTER);new AlertDialog.Builder(this).setTitle(tr("3D SURFACE PREVIEW")).setView(image).setPositiveButton(tr("CLOSE"),(d,w)->surface.recycle()).show();});content.addView(preview3d);
   }
-  private Bitmap createAiHeatmap(ArrayList<Integer> values,int rows,int cols,int low,int high){
+  private int[] scanBounds(ArrayList<Integer> values,int rows,int cols){int minR=rows-1,maxR=0,minC=cols-1,maxC=0;for(int i=0;i<values.size();i++){int[] rc=scanCell(i);minR=Math.min(minR,rc[0]);maxR=Math.max(maxR,rc[0]);minC=Math.min(minC,rc[1]);maxC=Math.max(maxC,rc[1]);}return new int[]{minR,maxR,minC,maxC};}
+  private Bitmap createAiHeatmap(ArrayList<Integer> values,int rows,int cols,int originRow,int originCol,int low,int high){
     Bitmap bitmap=Bitmap.createBitmap(cols,rows,Bitmap.Config.ARGB_8888);
     int[] pixels=new int[rows*cols];
     for(int r=0;r<rows;r++)for(int c=0;c<cols;c++){
       double weighted=0,weightTotal=0;boolean exact=false;double interpolated=0;
       for(int i=0;i<values.size();i++){
-        int[] point=scanCell(i);double dr=r-point[0],dc=c-point[1];double distance=dr*dr+dc*dc;
+        int[] point=scanCell(i);double dr=(r+originRow)-point[0],dc=(c+originCol)-point[1];double distance=dr*dr+dc*dc;
         if(distance<0.0001){interpolated=values.get(i);exact=true;break;}
         double weight=1.0/(distance+0.12);weighted+=weight*values.get(i);weightTotal+=weight;
       }
@@ -435,22 +437,19 @@ public class MainActivity extends Activity {
   private void finishMatrixScan(){matrixScanActive=false;autoRunning=false;lastScan.clear();lastScan.addAll(activeScan);activeScan.clear();if(!lastScan.isEmpty())saveScanToGallery();if(!tab.equals("LIVE"))logs.add(0,"MATRIX SCAN END • "+lastScan.size()+" values");}
   private int[] scanCell(int index){int col=index/scanRows,offset=index%scanRows;int row=(col%2==0)?scanRows-1-offset:offset;return new int[]{row,col};}
   private void galleryButton(){Button g=btn("OPEN SAVED SCAN GALLERY");g.setOnClickListener(v->{tap();show("GALLERY");});content.addView(g);}
+  private File getProjectDirectory(){File base=getExternalFilesDir(Environment.DIRECTORY_PICTURES);File dir=base==null?new File(getFilesDir(),"scans"):new File(base,"SUMER");if(!dir.exists())dir.mkdirs();return dir;}
+  private String safeProjectName(){String n=projectName==null?"SUMER":projectName.trim();n=n.replaceAll("[^\\p{L}\\p{N}_-]","_").replaceAll("_+","_");return n.isEmpty()?"SUMER":n;}
   private void saveScanToGallery(){
     try{
-      File dir=new File(getFilesDir(),"scans");if(!dir.exists())dir.mkdirs();
-      String stamp=new java.text.SimpleDateFormat("yyyyMMdd_HHmmss",Locale.US).format(new Date());
-      String[] suffix={"_01_HOMOGENEOUS","_02_GRID","_03_LABELS","_04_3D_THREE_VIEWS"};
-      for(int mode=0;mode<4;mode++){
-        Bitmap bitmap=mode==3?renderPerspectiveScan(lastScan,scanRows,scanCols):renderFlatScan(lastScan,scanRows,scanCols,mode);
-        File png=new File(dir,"SUMER_"+stamp+suffix[mode]+".png");
-        try(FileOutputStream out=new FileOutputStream(png)){bitmap.compress(Bitmap.CompressFormat.PNG,100,out);}
-        bitmap.recycle();
-      }
-      File csv=new File(dir,"SUMER_"+stamp+".csv");
-      try(FileWriter w=new FileWriter(csv)){w.write("row,column,block,value"+System.lineSeparator());for(int i=0;i<lastScan.size();i++){int[] rc=scanCell(i);w.write((rc[0]+1)+","+(rc[1]+1)+","+(i+1)+","+lastScan.get(i)+System.lineSeparator());}}
-      toast("4 scan images and CSV saved to SUMER gallery");
+      File dir=getProjectDirectory();String stamp=new java.text.SimpleDateFormat("yyyyMMdd_HHmmss",Locale.US).format(new Date());String base=safeProjectName()+"_"+stamp;
+      Bitmap interpolation=renderInterpolationScan(lastScan,scanRows,scanCols);Bitmap basic=renderFlatScan(lastScan,scanRows,scanCols,1);Bitmap surface=renderPerspectiveScan(lastScan,scanRows,scanCols);
+      Bitmap[] images={interpolation,basic,surface};String[] suffix={"_Interpolation","_Basic","_3D"};
+      for(int i=0;i<images.length;i++){File png=new File(dir,base+suffix[i]+".png");try(FileOutputStream out=new FileOutputStream(png)){images[i].compress(Bitmap.CompressFormat.PNG,100,out);}images[i].recycle();}
+      File csv=new File(dir,base+"_Data.csv");try(FileWriter w=new FileWriter(csv)){w.write("row,column,block,value"+System.lineSeparator());for(int i=0;i<lastScan.size();i++){int[] rc=scanCell(i);w.write((rc[0]+1)+","+(rc[1]+1)+","+(i+1)+","+lastScan.get(i)+System.lineSeparator());}}
+      toast("3 project images and CSV saved");
     }catch(Exception e){toast("Could not save scan: "+e.getMessage());}
   }
+  private Bitmap renderInterpolationScan(ArrayList<Integer> values,int rows,int cols){int cell=120;int[] range=scanRange(values);Bitmap heat=createAiHeatmap(values,rows,cols,0,0,range[0],range[1]);Bitmap out=Bitmap.createBitmap(cols*cell,rows*cell,Bitmap.Config.ARGB_8888);Canvas c=new Canvas(out);Paint p=new Paint(Paint.ANTI_ALIAS_FLAG|Paint.FILTER_BITMAP_FLAG);c.drawBitmap(heat,null,new RectF(0,0,out.getWidth(),out.getHeight()),p);heat.recycle();return out;}
   private int[] scanRange(ArrayList<Integer> values){int lo=5000,hi=0;for(int v:values){lo=Math.min(lo,v);hi=Math.max(hi,v);}return new int[]{lo,hi};}
   private Bitmap renderFlatScan(ArrayList<Integer> values,int rows,int cols,int mode){
     int cell=Math.max(48,Math.min(180,2048/Math.max(rows,cols)));
@@ -476,7 +475,7 @@ public class MainActivity extends Activity {
     float hScale=height*.42f;Paint p=new Paint(3);
     for(int r=0;r<rows-1;r++)for(int col=0;col<cols-1;col++){
       int i00=findScanIndex(r,col,rows),i10=findScanIndex(r+1,col,rows),i01=findScanIndex(r,col+1,rows),i11=findScanIndex(r+1,col+1,rows);
-      float z00=scanValueAt(values,i00)/5000f,z10=scanValueAt(values,i10)/5000f,z01=scanValueAt(values,i01)/5000f,z11=scanValueAt(values,i11)/5000f;
+      float span=Math.max(1,high-low);float z00=(scanValueAt(values,i00)-low)/span,z10=(scanValueAt(values,i10)-low)/span,z01=(scanValueAt(values,i01)-low)/span,z11=(scanValueAt(values,i11)-low)/span;
       float[] a=projectPoint(col,r,z00,angle,cx,baseY,scale,hScale),bb=projectPoint(col,r+1,z10,angle,cx,baseY,scale,hScale),cc=projectPoint(col+1,r,z01,angle,cx,baseY,scale,hScale),dd=projectPoint(col+1,r+1,z11,angle,cx,baseY,scale,hScale);
       int v=(scanValueAt(values,i00)+scanValueAt(values,i10)+scanValueAt(values,i01)+scanValueAt(values,i11))/4;int color=scanColor(v,low,high);
       drawSurfaceTriangle(canvas,p,a,bb,cc,color);drawSurfaceTriangle(canvas,p,bb,dd,cc,color);
