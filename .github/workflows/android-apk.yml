@@ -1,12 +1,6 @@
 name: Build SUMER Android APK
 
 on:
-  push:
-    branches: [main]
-    paths-ignore:
-      - 'build/sumer-2.4.apk.b64'
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
