@@ -16,6 +16,21 @@ android {
         versionName = "SUMER1"
     }
 
+    signingConfigs {
+        create("stableDebug") {
+            storeFile = rootProject.file(".github/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
+    buildTypes {
+        getByName("debug") {
+            signingConfig = signingConfigs.getByName("stableDebug")
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
