@@ -12,8 +12,8 @@ android {
         applicationId = "com.araztools.sumer.livepreview"
         minSdk = 23
         targetSdk = 28
-        versionCode = 3
-        versionName = "SUMER1"
+        versionCode = 4
+        versionName = "SUMER2"
     }
 
     signingConfigs {
