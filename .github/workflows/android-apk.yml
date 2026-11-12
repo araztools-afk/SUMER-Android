@@ -31,6 +31,11 @@ jobs:
         with:
           gradle-version: "8.9"
 
+      - name: Restore stable debug signing key
+        run: |
+          mkdir -p "$HOME/.android"
+          base64 --decode .github/debug.keystore.b64 > "$HOME/.android/debug.keystore"
+
       - name: Build debug APK
         run: gradle --no-daemon assembleDebug
 
