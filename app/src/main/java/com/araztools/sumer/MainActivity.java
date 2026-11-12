@@ -11,6 +11,10 @@ import android.os.*;
 import android.view.*;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.*;
+import android.media.*;
+import android.provider.MediaStore;
+import android.content.ContentValues;
+import android.net.Uri;
 import java.io.*;
 import java.util.*;
 
@@ -20,9 +24,17 @@ public class MainActivity extends Activity {
   private final ArrayList<Integer> activeScan=new ArrayList<>();
   private final ArrayList<Integer> lastScan=new ArrayList<>();
   private final ArrayList<String> logs=new ArrayList<>();
+  private final ArrayList<Integer> pinWave=new ArrayList<>();
+  private final ArrayList<File> galleryFiles=new ArrayList<>();
+  private double pinBaseline=Double.NaN,pinCalibrationSum=0;
+  private int pinCalibrationCount=0,pinFrequency=200;
+  private long pinCalibrationStart=0,lastPinToneAt=0;
+  private String lastDeviceAddress="";
+  private boolean reconnectEnabled=false;
+  private boolean autoReconnect=true;
   private final int[] palette={0xff18bfff,0xff7c5cff,0xff20c997,0xffffb547,0xffef5b78};
-  private int accent=0xff18bfff, last=-1,min=5001,max=-1,baud=9600,scanRows=10,scanCols=10;
-  private boolean dark=true,feedbackSound=false,feedbackVibe=true,alertSound=false,alertVibe=false,autoRunning=false,matrixScanActive=false;
+  private int accent=0xff18bfff, last=-1,min=5001,max=-1,baud=9600,scanRows=4,scanCols=3;
+  private boolean dark=true,feedbackSound=true,feedbackVibe=true,alertSound=true,alertVibe=false,autoRunning=false,matrixScanActive=false;
   private String tab="HOME",alertMode="MANUAL";
   private TextView status,brand;
   private LinearLayout root,content,bottom;
@@ -36,8 +48,8 @@ public class MainActivity extends Activity {
   private int muted(){return dark?0xff9aacc2:0xff62748b;}
   private int line(){return dark?0xff263c57:0xffd2ddea;}
   private int dp(float n){return (int)(n*getResources().getDisplayMetrics().density+.5f);}
-  @Override public void onCreate(Bundle b){super.onCreate(b);android.content.SharedPreferences pref=getPreferences(0);dark=pref.getBoolean("dark",true);accent=pref.getInt("accent",0xff18bfff);feedbackSound=pref.getBoolean("feedbackSound",true);feedbackVibe=pref.getBoolean("feedbackVibe",true);alertSound=pref.getBoolean("alertSound",false);alertVibe=pref.getBoolean("alertVibe",false);baud=pref.getInt("baud",9600);scanRows=pref.getInt("scanRows",10);scanCols=pref.getInt("scanCols",10);getWindow().setNavigationBarColor(bg());getWindow().setStatusBarColor(bg());getWindow().getDecorView().setSystemUiVisibility(dark?0:View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);if(!pref.getBoolean("activated",false)){registration();}else shell();}
-  private void persistSettings(){getPreferences(0).edit().putBoolean("dark",dark).putInt("accent",accent).putBoolean("feedbackSound",feedbackSound).putBoolean("feedbackVibe",feedbackVibe).putBoolean("alertSound",alertSound).putBoolean("alertVibe",alertVibe).putInt("baud",baud).putInt("scanRows",scanRows).putInt("scanCols",scanCols).apply();}
+  @Override public void onCreate(Bundle b){super.onCreate(b);android.content.SharedPreferences pref=getPreferences(0);dark=pref.getBoolean("dark",true);accent=pref.getInt("accent",0xff18bfff);feedbackSound=pref.getBoolean("feedbackSound",true);feedbackVibe=pref.getBoolean("feedbackVibe",true);alertSound=pref.getBoolean("alertSound",false);alertVibe=pref.getBoolean("alertVibe",false);baud=pref.getInt("baud",9600);scanRows=pref.getInt("scanRows",4);scanCols=pref.getInt("scanCols",3);autoReconnect=pref.getBoolean("autoReconnect",true);lastDeviceAddress=pref.getString("lastDeviceAddress","");getWindow().setNavigationBarColor(bg());getWindow().setStatusBarColor(bg());getWindow().getDecorView().setSystemUiVisibility(dark?0:View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);if(!pref.getBoolean("activated",false)){registration();}else shell();}
+  private void persistSettings(){getPreferences(0).edit().putBoolean("dark",dark).putInt("accent",accent).putBoolean("feedbackSound",feedbackSound).putBoolean("feedbackVibe",feedbackVibe).putBoolean("alertSound",alertSound).putBoolean("alertVibe",alertVibe).putInt("baud",baud).putInt("scanRows",scanRows).putInt("scanCols",scanCols).putBoolean("autoReconnect",autoReconnect).apply();}
   private TextView txt(String s,int size,int color){TextView t=new TextView(this);t.setText(s);t.setTextSize(size);t.setTextColor(color);t.setGravity(Gravity.CENTER_VERTICAL);return t;}
   private GradientDrawable shape(int color,int stroke){GradientDrawable d=new GradientDrawable();d.setColor(color);d.setCornerRadius(dp(18));if(stroke!=0)d.setStroke(dp(1),stroke);return d;}
   private LinearLayout col(){LinearLayout l=new LinearLayout(this);l.setOrientation(1);return l;}
@@ -50,11 +62,11 @@ public class MainActivity extends Activity {
     TextView shield=txt("◈",68,accent);shield.setGravity(Gravity.CENTER);LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-1,dp(125));sp.topMargin=dp(28);page.addView(shield,sp);
     TextView title=txt("SERIAL REGISTRATION",19,fg());title.setGravity(Gravity.CENTER);title.setTypeface(null,1);page.addView(title);
     TextView hint=txt("Enter your personal activation code to unlock SUMER.",14,muted());hint.setGravity(Gravity.CENTER);hint.setPadding(0,dp(10),0,dp(22));page.addView(hint);
-    EditText input=new EditText(this);input.setSingleLine(true);input.setTextColor(fg());input.setHintTextColor(muted());input.setHint("SUMER-XXXX-XXXX-XXXX");input.setBackground(shape(panel(),line()));pad(input,14);page.addView(input,new LinearLayout.LayoutParams(-1,dp(58)));
-    TextView note=txt("Prototype registration: format validation only. Production license verification requires the license service.",11,muted());note.setPadding(dp(4),dp(12),dp(4),dp(12));page.addView(note);
+    EditText input=new EditText(this);input.setSingleLine(true);input.setTextColor(fg());input.setHintTextColor(muted());input.setHint("Enter 8-digit serial number");input.setBackground(shape(panel(),line()));pad(input,14);page.addView(input,new LinearLayout.LayoutParams(-1,dp(58)));
+    TextView note=txt("One-time product registration. Enter the supplied SUMER serial number.",11,muted());note.setPadding(dp(4),dp(12),dp(4),dp(12));page.addView(note);
     Button activate=btn("ACTIVATE  →");LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-1,dp(54));ap.topMargin=dp(8);page.addView(activate,ap);
     TextView error=txt("",13,0xffff647c);error.setGravity(Gravity.CENTER);page.addView(error);
-    activate.setOnClickListener(v->{tap();String s=input.getText().toString().trim().toUpperCase(Locale.US);if(s.matches("SUMER-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}")){getPreferences(0).edit().putBoolean("activated",true).putString("license",s).apply();welcomeTune();shell();}else {error.setText("Invalid serial format. Please check the code.");vibrate(200);}});
+    activate.setOnClickListener(v->{tap();String s=input.getText().toString().trim().toUpperCase(Locale.US);if(s.equals("13651365")){getPreferences(0).edit().putBoolean("activated",true).putString("license",s).apply();welcomeTune();shell();}else {error.setText("Invalid serial format. Please check the code.");vibrate(200);}});
   }
   private Button btn(String s){Button b=new Button(this);b.setText(s);b.setTextColor(0xffffffff);b.setAllCaps(false);b.setTextSize(14);b.setBackground(shape(accent,0));return b;}
   private TextView label(String s){TextView t=txt(s,12,muted());t.setPadding(dp(2),dp(10),dp(2),dp(5));return t;}
@@ -71,7 +83,7 @@ public class MainActivity extends Activity {
   }
   private void show(String name){
     tab=name;content.removeAllViews();bottom.removeAllViews();
-    if(name.equals("HOME"))home();else if(name.equals("LIVE"))live();else if(name.equals("PIN"))pin();else if(name.equals("AUTOMATIC"))automatic();else if(name.equals("MANUAL"))manual();else if(name.equals("SETTINGS"))settings();else if(name.equals("DEVICE"))device();else if(name.equals("TERMINAL"))terminal();
+    if(name.equals("HOME"))home();else if(name.equals("LIVE"))live();else if(name.equals("PIN"))pin();else if(name.equals("AUTOMATIC"))automatic();else if(name.equals("MANUAL"))manual();else if(name.equals("SETTINGS"))settings();else if(name.equals("DEVICE"))device();else if(name.equals("TERMINAL"))terminal();else if(name.equals("GALLERY"))gallery();
     String[] names={"HOME","LIVE","PIN","AUTOMATIC","MANUAL","SETTINGS"};
     String[] icons={"⌂","◉","⌖","▷","✥","⚙"};
     for(int i=0;i<names.length;i++){final String n=names[i];TextView item=txt(icons[i]+"\n"+names[i],9,n.equals(tab)?accent:muted());item.setGravity(Gravity.CENTER);item.setOnClickListener(v->{tap();show(n);});bottom.addView(item,new LinearLayout.LayoutParams(0,-1,1));}
@@ -108,7 +120,8 @@ public class MainActivity extends Activity {
   }
   private void manual(){
     content.addView(heading("MANUAL SURVEY"));
-    content.addView(txt("Manual point-by-point acquisition and test input.",12,muted()));
+    content.addView(txt("Zigzag matrix survey • starts at bottom-left and proceeds column by column.",12,muted()));
+    galleryButton();
     stats();scanControls();scanTestButton();testDataInput("MANUAL TEST DATA INPUT");
     scanVisualization();
     content.addView(heading("RECENT VALUES"));
@@ -123,7 +136,7 @@ public class MainActivity extends Activity {
   }
   private void scanTestButton(){
     Button test=btn(matrixScanActive?"FINISH TEST SCAN  •  "+activeScan.size()+" VALUES":"START TEST SCAN");
-    test.setOnClickListener(v->{tap();if(matrixScanActive){matrixScanActive=false;lastScan.clear();lastScan.addAll(activeScan);activeScan.clear();}else{matrixScanActive=true;activeScan.clear();}show(tab);});content.addView(test);
+    test.setOnClickListener(v->{tap();if(matrixScanActive){finishMatrixScan();}else{matrixScanActive=true;activeScan.clear();lastScan.clear();toast("Test scan started. Enter values in zigzag order.");}show(tab);});content.addView(test);
   }
   private EditText numberField(String hint,int value){EditText e=new EditText(this);e.setSingleLine(true);e.setInputType(2);e.setText(""+value);e.setHint(hint);e.setTextColor(fg());e.setHintTextColor(muted());e.setBackground(shape(panel(),line()));pad(e,12);return e;}
   private void testDataInput(String title){
@@ -134,7 +147,7 @@ public class MainActivity extends Activity {
     LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(-1,dp(48));bp.topMargin=dp(8);panelBox.addView(inject,bp);card(panelBox);
   }
   private void automatic(){
-    content.addView(heading("AUTOMATIC SURVEY"));content.addView(txt("Automatic acquisition with a configurable scan grid.",12,muted()));stats();scanControls();scanTestButton();
+    content.addView(heading("AUTOMATIC SURVEY"));content.addView(txt("Automatic acquisition • zigzag path from the bottom-left corner.",12,muted()));galleryButton();stats();scanControls();scanTestButton();
     TextView state=txt(autoRunning?"●  ACQUISITION ACTIVE":"○  READY",17,autoRunning?0xff20c997:muted());state.setGravity(Gravity.CENTER);state.setBackground(shape(panel(),line()));
     LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,dp(72));p.topMargin=dp(12);content.addView(state,p);
     Button b=btn(autoRunning?"STOP SESSION":"START SESSION");b.setOnClickListener(v->{tap();autoRunning=!autoRunning;show("AUTOMATIC");});content.addView(b);
@@ -143,12 +156,17 @@ public class MainActivity extends Activity {
     content.addView(txt("Test values enter the same display pipeline; no synthetic readings are generated automatically.",11,muted()));
   }
   private void pin(){
-    content.addView(heading("PIN SURVEY"));content.addView(txt("Capture a point measurement and label its location.",12,muted()));stats();
-    EditText name=new EditText(this);name.setSingleLine(true);name.setHint("Point name / ID");name.setTextColor(fg());name.setBackground(shape(panel(),line()));pad(name,12);content.addView(name);
-    Button b=btn("SAVE CURRENT VALUE AS POINT");b.setOnClickListener(v->{tap();if(last<0){toast("No measurement received yet");return;}String s=name.getText().toString().trim();if(s.isEmpty())s="Point "+(logs.size()+1);logs.add(0,s+"  •  "+last);toast("Point saved in this session");});content.addView(b);
+    content.addView(heading("PIN POINT SURVEY"));
+    content.addView(txt("First 2 seconds establish the baseline. The sine trace and square-wave tone respond to deviations.",12,muted()));
+    stats();
+    String base=Double.isNaN(pinBaseline)?"CALIBRATING — "+pinCalibrationCount+" samples":String.format(Locale.US,"BASELINE %.1f  •  CURRENT Δ %+d  •  TONE %d Hz",pinBaseline,last<0?0:(int)Math.round(last-pinBaseline),pinFrequency);
+    TextView info=txt(base,12,accent);info.setPadding(dp(8),dp(12),dp(8),dp(12));card(info);
+    View wave=new View(this){protected void onDraw(Canvas canvas){super.onDraw(canvas);float w=getWidth(),h=getHeight();Paint p=new Paint(3);p.setColor(line());p.setStrokeWidth(dp(1));canvas.drawLine(0,h/2,w,h/2,p);p.setColor(accent);p.setStrokeWidth(dp(2));p.setStyle(Paint.Style.STROKE);Path path=new Path();int n=Math.max(80,pinWave.size());for(int i=0;i<n;i++){float x=(w-8)*i/Math.max(1,n-1)+4;float amp=dp(12);if(!pinWave.isEmpty()){int v=pinWave.get(Math.min(pinWave.size()-1,(int)((long)i*pinWave.size()/n)));amp=Math.min(h*.42f,dp(12)+Math.abs(v)*h/10000f);}float y=h/2-(float)Math.sin(i*.18)*amp;if(i==0)path.moveTo(x,y);else path.lineTo(x,y);}canvas.drawPath(path,p);p.setStyle(Paint.Style.FILL);}};
+    wave.setBackground(shape(panel(),line()));LinearLayout.LayoutParams wp=new LinearLayout.LayoutParams(-1,dp(150));wp.bottomMargin=dp(12);content.addView(wave,wp);
+    EditText name=new EditText(this);name.setSingleLine(true);name.setHint("Point name / ID");name.setTextColor(fg());name.setHintTextColor(muted());name.setBackground(shape(panel(),line()));pad(name,12);content.addView(name);
+    Button b=btn("SAVE CURRENT VALUE AS POINT");b.setOnClickListener(v->{tap();if(last<0){toast("No measurement received yet");return;}String n=name.getText().toString().trim();if(n.isEmpty())n="Point "+(pinRecords().size()+1);ArrayList<String> points=pinRecords();points.add(0,n+" | "+last+" | "+new Date());getPreferences(0).edit().putString("pinRecords",joinLines(points)).apply();toast("Point saved permanently");show("PIN");});content.addView(b);
     testDataInput("MANUAL PIN DATA INPUT");
-    scanVisualization();
-    content.addView(heading("SESSION POINTS"));for(String s:logs){TextView t=txt("⌖   "+s,14,fg());t.setPadding(dp(12),dp(10),dp(12),dp(10));card(t);}
+    content.addView(heading("SAVED POINTS"));for(String p:pinRecords()){TextView t=txt("⌖   "+p,13,fg());t.setPadding(dp(10),dp(9),dp(10),dp(9));card(t);}
   }
   private int scanColor(int value,int lo,int hi){
     float t=hi<=lo?0.5f:Math.max(0f,Math.min(1f,(value-lo)/(float)(hi-lo)));
@@ -177,7 +195,8 @@ public class MainActivity extends Activity {
     content.addView(label("SIGNAL ALERTS  •  MANUAL"));
     addChoice("Alert output",new String[]{"Speaker","Vibration","Both","None"},alertSound&&alertVibe?2:alertSound?0:alertVibe?1:3,i->{alertSound=i==0||i==2;alertVibe=i==1||i==2;persistSettings();});
     content.addView(label("CONNECTION"));
-    addChoice("Baud rate",new String[]{"1200","2400","4800","9600","19200","38400","57600","115200"},new int[]{1200,2400,4800,9600,19200,38400,57600,115200}.length>0?baudIndex():3,i->{int[] a={1200,2400,4800,9600,19200,38400,57600,115200};baud=a[i];persistSettings();updateStatus();});
+    addChoice("Baud rate",new String[]{"1200","2400","4800","9600","19200","38400","57600","115200"},baudIndex(),i->{int[] a={1200,2400,4800,9600,19200,38400,57600,115200};baud=a[i];persistSettings();updateStatus();});
+    addChoice("Automatic reconnect",new String[]{"On","Off"},autoReconnect?0:1,i->{autoReconnect=i==0;persistSettings();});
     Button testFeedback=btn("TEST TOUCH FEEDBACK");
     testFeedback.setOnClickListener(v->{tap();toast("Touch feedback test complete");});content.addView(testFeedback);
     Button testAlert=btn("TEST SIGNAL ALERT");
@@ -209,15 +228,28 @@ public class MainActivity extends Activity {
     content.addView(txt("Pair the scanner in Android Bluetooth settings first. The baud selection is a project setting and must match the transmitter configuration.",11,muted()));
   }
   private void terminal(){
-    content.addView(heading("DATA TERMINAL"));content.addView(txt("Raw incoming values • one number per line",12,muted()));
+    content.addView(heading("DATA TERMINAL"));content.addView(txt("Raw incoming and outgoing Bluetooth SPP data • one value per line",12,muted()));
+    LinearLayout send=row();EditText command=numberField("Send command / value",0);command.setText("");send.addView(command,new LinearLayout.LayoutParams(0,dp(52),1));Button sendBtn=btn("SEND");send.addView(sendBtn);sendBtn.setOnClickListener(v->{tap();String value=command.getText().toString().trim();if(value.isEmpty())return;sendLine(value);logs.add(0,"TX  "+value);command.setText("");show("TERMINAL");});content.addView(send);
     for(String s:logs){TextView t=txt(s,13,0xff20c997);t.setPadding(dp(10),dp(7),dp(10),dp(7));t.setBackground(shape(panel(),line()));card(t);}
     Button clear=btn("CLEAR LOG");clear.setOnClickListener(v->{tap();logs.clear();show("TERMINAL");});content.addView(clear);
   }
-  private void accept(int v){if(v<0||v>5000){toast("Value must be 0–5000");return;}last=v;min=Math.min(min,v);max=Math.max(max,v);if(matrixScanActive)activeScan.add(v);if(!tab.equals("LIVE")){samples.addLast(v);while(samples.size()>300)samples.removeFirst();logs.add(0,String.format(Locale.US,"%tT   %d",new Date(),v));if(logs.size()>200)logs.remove(logs.size()-1);}if(alertSound||alertVibe){if(alertSound)tone();if(alertVibe)vibrate(45);}if(tab.equals("LIVE")||tab.equals("MANUAL")||tab.equals("AUTOMATIC"))show(tab);}
-  private void acceptLine(String s){if(s.trim().equalsIgnoreCase("a")){matrixScanActive=!matrixScanActive;if(matrixScanActive){activeScan.clear();}else{lastScan.clear();lastScan.addAll(activeScan);activeScan.clear();}if(!tab.equals("LIVE")){logs.add(0,matrixScanActive?"MATRIX SCAN START":"MATRIX SCAN END");handler.post(()->{if(tab.equals("MANUAL")||tab.equals("AUTOMATIC")||tab.equals("PIN"))show(tab);});}return;}try{accept(Integer.parseInt(s.trim()));}catch(Exception e){if(!tab.equals("LIVE"))logs.add(0,"INVALID  "+s);}}
+  private void accept(int v){
+    if(v<0||v>5000){toast("Value must be 0–5000");return;}
+    last=v;min=Math.min(min,v);max=Math.max(max,v);
+    if(matrixScanActive){int idx=activeScan.size();if(idx<scanRows*scanCols){activeScan.add(v);int col=idx/scanRows;signalAlert(col==scanCols-1?500:200);}}
+    if(!tab.equals("LIVE")){samples.addLast(v);while(samples.size()>300)samples.removeFirst();logs.add(0,String.format(Locale.US,"%tT   RX %d",new Date(),v));if(logs.size()>200)logs.remove(logs.size()-1);}
+    if(tab.equals("PIN"))updatePinSignal(v);
+    if((alertSound||alertVibe)&&!matrixScanActive&& !tab.equals("PIN"))signalAlert(45);
+    if(tab.equals("LIVE")||tab.equals("MANUAL")||tab.equals("AUTOMATIC")||tab.equals("PIN"))show(tab);
+  }
+  private void acceptLine(String s){
+    if(s.trim().equalsIgnoreCase("a")){if(matrixScanActive){finishMatrixScan();}else{matrixScanActive=true;activeScan.clear();lastScan.clear();if(!tab.equals("LIVE"))logs.add(0,"MATRIX SCAN START");}if(tab.equals("MANUAL")||tab.equals("AUTOMATIC")||tab.equals("PIN"))show(tab);return;}
+    try{accept(Integer.parseInt(s.trim()));}catch(Exception e){if(!tab.equals("LIVE")){logs.add(0,"INVALID  "+s);if(logs.size()>200)logs.remove(logs.size()-1);}}
+  }
   private void chooseDevice(){if(Build.VERSION.SDK_INT>=31&&checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.BLUETOOTH_CONNECT,Manifest.permission.BLUETOOTH_SCAN},BT_REQ);return;}try{BluetoothAdapter a=BluetoothAdapter.getDefaultAdapter();if(a==null){toast("Bluetooth unavailable");return;}ArrayList<BluetoothDevice> list=new ArrayList<>(a.getBondedDevices());if(list.isEmpty()){toast("Pair the device in Android settings first");return;}String[] names=new String[list.size()];for(int i=0;i<list.size();i++)names[i]=list.get(i).getName()+" • "+list.get(i).getAddress();new AlertDialog.Builder(this).setTitle("Paired devices").setItems(names,(x,n)->connect(list.get(n))).setNegativeButton("Cancel",null).show();}catch(Exception e){toast("Bluetooth permission required");}}
   private void connect(BluetoothDevice dev){
-    disconnect();status.setText("● CONNECTING…");
+    reconnectEnabled=true;lastDeviceAddress=dev.getAddress();getPreferences(0).edit().putString("lastDeviceAddress",lastDeviceAddress).apply();
+    disconnectSocketOnly();status.setText("● CONNECTING…");
     final BluetoothSocket localSocket;
     try{localSocket=dev.createRfcommSocketToServiceRecord(UUID.fromString("00001101-0000-1000-8000-00805F9B34FB"));socket=localSocket;}
     catch(Exception e){status.setText("● CONNECTION FAILED");toast(e.getMessage()==null?"Connection failed":e.getMessage());return;}
@@ -234,16 +266,23 @@ public class MainActivity extends Activity {
           }else if(line.size()<128)line.write(b);
         }
       }catch(Exception e){
-        handler.post(()->{if(socket==localSocket){status.setText("● CONNECTION LOST");toast(e.getMessage()==null?"Connection failed":e.getMessage());}});
+        handler.post(()->{if(socket==localSocket){status.setText("● CONNECTION LOST");toast(e.getMessage()==null?"Connection failed":e.getMessage());scheduleReconnect();}});
       }finally{
         try{localSocket.close();}catch(Exception ignored){}
         if(socket==localSocket)socket=null;
       }
     });reader.start();
   }
-  private void disconnect(){try{if(reader!=null)reader.interrupt();if(socket!=null)socket.close();}catch(Exception ignored){}socket=null;reader=null;updateStatus();}
+  private void disconnectSocketOnly(){try{if(reader!=null)reader.interrupt();if(socket!=null)socket.close();}catch(Exception ignored){}socket=null;reader=null;}
+  private void disconnect(){reconnectEnabled=false;disconnectSocketOnly();updateStatus();}
+  private void scheduleReconnect(){if(!autoReconnect||!reconnectEnabled||lastDeviceAddress.isEmpty())return;handler.postDelayed(()->{if(reconnectEnabled&&socket==null)connectAddress(lastDeviceAddress);},5000);}
+  @SuppressWarnings("MissingPermission") private void connectAddress(String address){try{BluetoothDevice d=BluetoothAdapter.getDefaultAdapter().getRemoteDevice(address);connect(d);}catch(Exception e){scheduleReconnect();}}
   private void updateStatus(){if(status!=null)status.setText("●  DEVICE DISCONNECTED     •     "+baud+" BAUD");}
   private void tap(){if(feedbackVibe)vibrate(18);if(feedbackSound)tone();}
+  private void signalAlert(int duration){if(alertVibe)vibrate(duration);if(alertSound)toneFor(duration);}
+  private void toneFor(int duration){try{ToneGenerator t=new ToneGenerator(AudioManager.STREAM_NOTIFICATION,65);t.startTone(ToneGenerator.TONE_PROP_BEEP,duration);handler.postDelayed(t::release,duration+80);}catch(Exception ignored){}}
+  private void updatePinSignal(int value){long now=SystemClock.elapsedRealtime();if(pinCalibrationStart==0)pinCalibrationStart=now;if(now-pinCalibrationStart<2000){pinCalibrationSum+=value;pinCalibrationCount++;pinBaseline=pinCalibrationSum/pinCalibrationCount;pinFrequency=200;}else{if(Double.isNaN(pinBaseline))pinBaseline=pinCalibrationCount==0?value:pinCalibrationSum/pinCalibrationCount;double delta=value-pinBaseline;pinFrequency=Math.max(1,Math.min(400,(int)Math.round(200+delta*199/5000.0)));pinWave.add((int)Math.max(-5000,Math.min(5000,Math.round(delta))));while(pinWave.size()>120)pinWave.remove(0);if(alertSound&&now-lastPinToneAt>100){lastPinToneAt=now;playSquareTone(pinFrequency,80);}}}
+  private void playSquareTone(int frequency,int durationMs){new Thread(()->{AudioTrack track=null;try{int rate=22050,count=rate*durationMs/1000;short[] pcm=new short[count];int half=Math.max(1,rate/(2*Math.max(1,frequency)));for(int i=0;i<count;i++)pcm[i]=(short)((i/half%2==0?1:-1)*3500);track=new AudioTrack(AudioManager.STREAM_MUSIC,rate,AudioFormat.CHANNEL_OUT_MONO,AudioFormat.ENCODING_PCM_16BIT,count*2,AudioTrack.MODE_STATIC);track.write(pcm,0,count);track.play();Thread.sleep(durationMs+20);}catch(Exception ignored){}finally{if(track!=null)try{track.stop();track.release();}catch(Exception ignored){}}}).start();}
   private void vibrate(int ms){try{android.os.Vibrator v=(android.os.Vibrator)getSystemService(VIBRATOR_SERVICE);if(v!=null){if(Build.VERSION.SDK_INT>=26)v.vibrate(VibrationEffect.createOneShot(ms,65));else v.vibrate(ms);}}catch(Exception ignored){}}
   private void tone(){try{android.media.ToneGenerator t=new android.media.ToneGenerator(android.media.AudioManager.STREAM_SYSTEM,35);t.startTone(android.media.ToneGenerator.TONE_PROP_BEEP,45);handler.postDelayed(t::release,100);}catch(Exception ignored){}}
   private void welcomeTune(){
@@ -254,6 +293,18 @@ public class MainActivity extends Activity {
       track.write(pcm,0,pcm.length);track.play();Thread.sleep(2050);
     }catch(Exception ignored){}finally{if(track!=null)try{track.stop();track.release();}catch(Exception ignored){}}}).start();
   }
+
+  private void finishMatrixScan(){matrixScanActive=false;lastScan.clear();lastScan.addAll(activeScan);activeScan.clear();if(!lastScan.isEmpty())saveScanToGallery();if(!tab.equals("LIVE"))logs.add(0,"MATRIX SCAN END • "+lastScan.size()+" values");}
+  private int[] scanCell(int index){int col=index/scanRows,offset=index%scanRows;int row=(col%2==0)?scanRows-1-offset:offset;return new int[]{row,col};}
+  private void galleryButton(){Button g=btn("OPEN SAVED SCAN GALLERY");g.setOnClickListener(v->{tap();show("GALLERY");});content.addView(g);}
+  private void saveScanToGallery(){try{File dir=new File(getFilesDir(),"scans");if(!dir.exists())dir.mkdirs();String stamp=new java.text.SimpleDateFormat("yyyyMMdd_HHmmss",Locale.US).format(new Date());File png=new File(dir,"SUMER_"+stamp+".png");Bitmap bitmap=renderScanBitmap(lastScan,scanRows,scanCols);try(FileOutputStream out=new FileOutputStream(png)){bitmap.compress(Bitmap.CompressFormat.PNG,100,out);}bitmap.recycle();File csv=new File(dir,"SUMER_"+stamp+".csv");try(FileWriter w=new FileWriter(csv)){w.write("row,column,block,value\\n");for(int i=0;i<lastScan.size();i++){int[] rc=scanCell(i);w.write((rc[0]+1)+","+(rc[1]+1)+","+(i+1)+","+lastScan.get(i)+"\\n");}}toast("Scan saved to SUMER gallery");}catch(Exception e){toast("Could not save scan: "+e.getMessage());}}
+  private Bitmap renderScanBitmap(ArrayList<Integer> values,int rows,int cols){int cell=180;Bitmap b=Bitmap.createBitmap(cols*cell,rows*cell,Bitmap.Config.ARGB_8888);Canvas c=new Canvas(b);c.drawColor(0xff202832);Paint p=new Paint(3);p.setTextAlign(Paint.Align.CENTER);for(int i=0;i<values.size()&&i<rows*cols;i++){int[] rc=scanCell(i);float x=rc[1]*cell,y=rc[0]*cell; p.setColor(scanColor(values.get(i),0,5000));c.drawRect(x+2,y+2,x+cell-2,y+cell-2,p);p.setColor(0x99ffffff);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(2);c.drawRect(x+2,y+2,x+cell-2,y+cell-2,p);p.setStyle(Paint.Style.FILL);p.setColor(0xffffffff);p.setTextSize(25);c.drawText("BLOCK "+(i+1),x+cell/2,y+cell/2-8,p);p.setTextSize(38);c.drawText(""+values.get(i),x+cell/2,y+cell/2+42,p);}return b;}
+  private void gallery(){content.addView(heading("SAVED SCAN GALLERY"));content.addView(txt("Completed matrix scans are saved on this phone. Select EXPORT to copy an image to the device gallery.",12,muted()));File dir=new File(getFilesDir(),"scans");File[] files=dir.listFiles((d,n)->n.endsWith(".png"));galleryFiles.clear();if(files!=null){Arrays.sort(files,(a,b)->Long.compare(b.lastModified(),a.lastModified()));galleryFiles.addAll(Arrays.asList(files));}if(galleryFiles.isEmpty()){content.addView(txt("No saved scans yet.",14,muted()));return;}for(File f:galleryFiles){LinearLayout box=col();box.setPadding(dp(10),dp(10),dp(10),dp(10));box.setBackground(shape(panel(),line()));TextView name=txt(f.getName(),12,fg());box.addView(name);ImageView image=new ImageView(this);Bitmap bm=BitmapFactory.decodeFile(f.getAbsolutePath());image.setImageBitmap(bm);image.setAdjustViewBounds(true);box.addView(image,new LinearLayout.LayoutParams(-1,dp(210)));Button export=btn("EXPORT IMAGE TO PHONE GALLERY");export.setOnClickListener(v->{tap();exportImage(f);});box.addView(export);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.bottomMargin=dp(12);content.addView(box,p);}}
+  private void exportImage(File file){try{ContentValues values=new ContentValues();values.put(MediaStore.Images.Media.DISPLAY_NAME,file.getName());values.put(MediaStore.Images.Media.MIME_TYPE,"image/png");if(Build.VERSION.SDK_INT>=29)values.put(MediaStore.Images.Media.RELATIVE_PATH,Environment.DIRECTORY_PICTURES+"/SUMER");Uri uri=getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI,values);if(uri==null)throw new IOException("MediaStore unavailable");try(InputStream in=new FileInputStream(file);OutputStream out=getContentResolver().openOutputStream(uri)){byte[] buf=new byte[8192];int n;while((n=in.read(buf))>0)out.write(buf,0,n);}toast("Image exported to Pictures/SUMER");}catch(Exception e){toast("Export failed: "+e.getMessage());}}
+  private ArrayList<String> pinRecords(){ArrayList<String> out=new ArrayList<>();String raw=getPreferences(0).getString("pinRecords","");if(!raw.isEmpty())out.addAll(Arrays.asList(raw.split("\\n")));return out;}
+  private String joinLines(ArrayList<String> lines){StringBuilder b=new StringBuilder();for(String s:lines){if(b.length()>0)b.append('\\n');b.append(s.replace('\\n',' '));}return b.toString();}
+  private void sendLine(String value){try{if(socket==null||!socket.isConnected()){toast("Device is not connected");return;}OutputStream out=socket.getOutputStream();out.write((value+"\\n").getBytes("UTF-8"));out.flush();}catch(Exception e){toast("Send failed: "+e.getMessage());}}
+
   private void toast(String s){Toast.makeText(this,s,Toast.LENGTH_SHORT).show();}
   @Override public void onRequestPermissionsResult(int r,String[] p,int[] g){super.onRequestPermissionsResult(r,p,g);if(r==BT_REQ&&g.length>0&&g[0]==PackageManager.PERMISSION_GRANTED)chooseDevice();}
   @Override protected void onDestroy(){disconnect();super.onDestroy();}
