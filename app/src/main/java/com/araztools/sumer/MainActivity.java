@@ -1,5 +1,12 @@
 package com.araztools.sumer;
 
+import com.araztools.sumer.data.local.DeviceHistoryEntity;
+import com.araztools.sumer.data.local.ScanEntity;
+import com.araztools.sumer.data.local.ScanSampleEntity;
+import com.araztools.sumer.data.local.SumerDatabase;
+import com.araztools.sumer.data.repository.DeviceHistoryStore;
+import com.araztools.sumer.data.repository.ScanStorageWorker;
+
 import android.Manifest;
 import android.app.*;
 import android.bluetooth.*;
@@ -48,6 +55,11 @@ public class MainActivity extends Activity {
   private AlertDialog discoveryDialog;
   private BroadcastReceiver discoveryReceiver;
   private static final int BT_REQ=71;
+  private SumerDatabase database;
+  private ScanStorageWorker scanStorageWorker;
+  private DeviceHistoryStore deviceHistoryStore;
+  private String currentDeviceName="",currentDeviceAddress="";
+  private boolean scanCapacityWarningShown=false;
   private int bg(){return dark?Color.HSVToColor(new float[]{uiSpectrum,0.48f,Math.max(.035f,uiBrightness/1800f)}):0xffeef3f9;}
   private int panel(){return dark?0xff0b1730:0xffffffff;}
   private int panel2(){return dark?0xff102447:0xffe2eaf4;}
@@ -55,7 +67,11 @@ public class MainActivity extends Activity {
   private int muted(){return dark?0xffa9bdd8:0xff62748b;}
   private int line(){return dark?0xff24517f:0xffd2ddea;}
   private int dp(float n){return (int)(n*getResources().getDisplayMetrics().density+.5f);}
-  @Override public void onCreate(Bundle b){super.onCreate(b);android.content.SharedPreferences pref=getPreferences(0);dark=pref.getBoolean("dark",true);accent=pref.getInt("accent",0xff18bfff);feedbackSound=pref.getBoolean("feedbackSound",true);feedbackVibe=pref.getBoolean("feedbackVibe",true);alertSound=pref.getBoolean("alertSound",true);alertVibe=pref.getBoolean("alertVibe",false);baud=pref.getInt("baud",9600);scanRows=pref.getInt("scanRows",4);scanCols=pref.getInt("scanCols",3);uiBrightness=pref.getInt("uiBrightness",100);uiSpectrum=pref.getInt("uiSpectrum",210);outputVolume=pref.getInt("outputVolume",70);appPassword=pref.getString("appPassword","");scanViewMode=pref.getString("scanViewMode","CLASSIC");language=pref.getString("language","en");projectName=pref.getString("projectName","SUMER");autoReconnect=pref.getBoolean("autoReconnect",true);lastDeviceAddress=pref.getString("lastDeviceAddress","");getWindow().setNavigationBarColor(bg());getWindow().setStatusBarColor(bg());setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR);getWindow().getDecorView().setSystemUiVisibility(dark?0:View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);if(!pref.getBoolean("activated",false)){registration();}else{shell();if(autoReconnect&&!lastDeviceAddress.isEmpty())handler.postDelayed(()->{if(Build.VERSION.SDK_INT<31||checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT)==PackageManager.PERMISSION_GRANTED)connectAddress(lastDeviceAddress);},900);}}
+  @Override public void onCreate(Bundle b){super.onCreate(b);
+    database=SumerDatabase.getInstance(getApplicationContext());
+    scanStorageWorker=new ScanStorageWorker(database,message->handler.post(()->toast("Scan storage: "+message)));
+    deviceHistoryStore=new DeviceHistoryStore(database);
+    android.content.SharedPreferences pref=getPreferences(0);dark=pref.getBoolean("dark",true);accent=pref.getInt("accent",0xff18bfff);feedbackSound=pref.getBoolean("feedbackSound",true);feedbackVibe=pref.getBoolean("feedbackVibe",true);alertSound=pref.getBoolean("alertSound",true);alertVibe=pref.getBoolean("alertVibe",false);baud=pref.getInt("baud",9600);scanRows=pref.getInt("scanRows",4);scanCols=pref.getInt("scanCols",3);uiBrightness=pref.getInt("uiBrightness",100);uiSpectrum=pref.getInt("uiSpectrum",210);outputVolume=pref.getInt("outputVolume",70);appPassword=pref.getString("appPassword","");scanViewMode=pref.getString("scanViewMode","CLASSIC");language=pref.getString("language","en");projectName=pref.getString("projectName","SUMER");autoReconnect=pref.getBoolean("autoReconnect",true);lastDeviceAddress=pref.getString("lastDeviceAddress","");getWindow().setNavigationBarColor(bg());getWindow().setStatusBarColor(bg());setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR);getWindow().getDecorView().setSystemUiVisibility(dark?0:View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);if(!pref.getBoolean("activated",false)){registration();}else{shell();if(autoReconnect&&!lastDeviceAddress.isEmpty())handler.postDelayed(()->{if(Build.VERSION.SDK_INT<31||checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT)==PackageManager.PERMISSION_GRANTED)connectAddress(lastDeviceAddress);},900);}}
   private void persistSettings(){getPreferences(0).edit().putInt("uiBrightness",uiBrightness).putInt("uiSpectrum",uiSpectrum).putInt("outputVolume",outputVolume).putString("appPassword",appPassword).putBoolean("dark",dark).putInt("accent",accent).putBoolean("feedbackSound",feedbackSound).putBoolean("feedbackVibe",feedbackVibe).putBoolean("alertSound",alertSound).putBoolean("alertVibe",alertVibe).putInt("baud",baud).putInt("scanRows",scanRows).putInt("scanCols",scanCols).putString("scanViewMode",scanViewMode).putString("language",language).putString("projectName",projectName).putBoolean("autoReconnect",autoReconnect).apply();}
   private TextView txt(String s,int size,int color){TextView t=new TextView(this);t.setText(tr(s));t.setTextSize(size);t.setTextColor(color);t.setGravity(Gravity.CENTER_VERTICAL);if(dark&&size>=18)t.setShadowLayer(dp(3),0,dp(1),0x553caeff);return t;}
   private GradientDrawable shape(int color,int stroke){GradientDrawable d;if(dark){int top=Color.rgb(Math.min(255,Color.red(color)+7),Math.min(255,Color.green(color)+15),Math.min(255,Color.blue(color)+27));d=new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{top,color});}else{d=new GradientDrawable();d.setColor(color);}d.setCornerRadius(dp(18));if(stroke!=0)d.setStroke(dp(1),dark?0xff286ca5:stroke);return d;}
@@ -138,10 +154,72 @@ public class MainActivity extends Activity {
     grid.addView(rowsField,new LinearLayout.LayoutParams(0,dp(54),.8f));View gap=new View(this);grid.addView(gap,new LinearLayout.LayoutParams(dp(6),1));grid.addView(colsField,new LinearLayout.LayoutParams(0,dp(54),.8f));View gap2=new View(this);grid.addView(gap2,new LinearLayout.LayoutParams(dp(6),1));grid.addView(projectField,new LinearLayout.LayoutParams(0,dp(54),1.5f));content.addView(grid);
     Button save=btn("APPLY ROWS / COLUMNS");save.setOnClickListener(v->{tap();try{int r=Integer.parseInt(rowsField.getText().toString().trim()),c=Integer.parseInt(colsField.getText().toString().trim());if(r<1||r>50||c<1||c>50||r*c>2500)throw new Exception();scanRows=r;scanCols=c;String pn=projectField.getText().toString().trim();if(!pn.isEmpty())projectName=pn;persistSettings();toast("Grid set to "+r+" rows × "+c+" columns");show(tab);}catch(Exception e){toast("Rows and columns must be 1–50");}});content.addView(save);
     TextView dimensions=txt(tr("ACTIVE GRID")+": "+scanRows+" × "+scanCols+"  •  "+(scanRows*scanCols)+" "+tr("CELLS"),11,accent);dimensions.setPadding(dp(4),dp(8),dp(4),dp(10));content.addView(dimensions);
+    Button history=btn("OPEN SCAN DATA HISTORY");
+    history.setOnClickListener(v->{tap();showScanHistory();});
+    content.addView(history);
   }
+
+  private void showScanHistory(){
+    new Thread(()->{
+      try{
+        List<ScanEntity> scans=database.scanDao().getRecentScans();
+        handler.post(()->{
+          if(scans.isEmpty()){toast("No saved scan data yet");return;}
+          java.text.SimpleDateFormat format=new java.text.SimpleDateFormat("yyyy/MM/dd HH:mm:ss",Locale.getDefault());
+          String[] labels=new String[scans.size()];
+          for(int i=0;i<scans.size();i++){
+            ScanEntity scan=scans.get(i);
+            String state=scan.isComplete?"COMPLETE":"INCOMPLETE";
+            labels[i]=format.format(new Date(scan.startedAt))+" • "+scan.mode+" • "+scan.sampleCount+" values • "+state;
+          }
+          new AlertDialog.Builder(this)
+            .setTitle("SCAN DATA HISTORY")
+            .setItems(labels,(dialog,which)->showScanDetails(scans.get(which)))
+            .setNegativeButton(tr("Close"),null)
+            .show();
+        });
+      }catch(Exception error){
+        handler.post(()->toast("Could not read scan history: "+error.getMessage()));
+      }
+    },"SUMER-Scan-History").start();
+  }
+
+  private void showScanDetails(ScanEntity scan){
+    new Thread(()->{
+      try{
+        List<ScanSampleEntity> samples=database.scanDao().getSamples(scan.id);
+        StringBuilder preview=new StringBuilder();
+        int limit=Math.min(40,samples.size());
+        for(int i=0;i<limit;i++){
+          if(i>0)preview.append(", ");
+          preview.append(samples.get(i).value);
+        }
+        StringBuilder detail=new StringBuilder();
+        detail.append("ID: ").append(scan.id).append("\n");
+        detail.append("Mode: ").append(scan.mode).append("\n");
+        detail.append("Device: ").append(scan.deviceName).append("\n");
+        detail.append("Address: ").append(scan.deviceAddress).append("\n");
+        detail.append("Grid: ").append(scan.rows).append(" × ").append(scan.columns).append("\n");
+        detail.append("Samples: ").append(scan.sampleCount).append("\n");
+        detail.append("Minimum: ").append(scan.minValue<0?"—":scan.minValue).append("\n");
+        detail.append("Maximum: ").append(scan.maxValue<0?"—":scan.maxValue).append("\n");
+        detail.append("Status: ").append(scan.isComplete?"COMPLETE":"INCOMPLETE").append("\n");
+        detail.append("First values: ").append(preview.length()==0?"—":preview);
+        if(samples.size()>limit)detail.append("\n… ").append(samples.size()-limit).append(" more values");
+        handler.post(()->new AlertDialog.Builder(this)
+          .setTitle("SCAN #"+scan.id)
+          .setMessage(detail.toString())
+          .setPositiveButton(tr("Close"),null)
+          .show());
+      }catch(Exception error){
+        handler.post(()->toast("Could not read scan details: "+error.getMessage()));
+      }
+    },"SUMER-Scan-Details").start();
+  }
+
   private void scanTestButton(){
     Button test=btn(matrixScanActive?"■  "+tr("FINISH TEST SCAN")+" • "+activeScan.size()+" "+tr("VALUES"):"▶  "+tr("START TEST SCAN"));
-    test.setOnClickListener(v->{tap();if(matrixScanActive){finishMatrixScan();}else{matrixScanActive=true;activeScan.clear();lastScan.clear();toast("Test scan started. Enter values in zigzag order.");}show(tab);});content.addView(test);
+    test.setOnClickListener(v->{tap();if(matrixScanActive){finishMatrixScan();}else{startMatrixScan(tab.equals("MANUAL")?"MANUAL":"AUTOMATIC");toast("Test scan started. Enter values in zigzag order.");}show(tab);});content.addView(test);
   }
   private EditText numberField(String hint,int value){EditText e=new EditText(this);e.setSingleLine(true);e.setInputType(2);e.setText(""+value);e.setHint(tr(hint));e.setTextColor(fg());e.setHintTextColor(muted());e.setBackground(shape(panel(),line()));pad(e,12);return e;}
   private void testDataInput(String title){
@@ -293,9 +371,38 @@ public class MainActivity extends Activity {
   private void device(){
     content.addView(heading("DEVICE CONNECTION"));content.addView(txt("Bluetooth Classic / SPP • paired devices",12,muted()));
     Button c=btn("SEARCH / SELECT BLUETOOTH DEVICE");c.setOnClickListener(v->{tap();chooseDevice();});content.addView(c);
+    Button history=btn("DEVICE HISTORY");
+    history.setOnClickListener(v->{tap();showDeviceHistory();});
+    content.addView(history);
     Button d=btn("DISCONNECT");d.setOnClickListener(v->{tap();disconnect();});content.addView(d);
     addChoice("Baud rate",new String[]{"1200","2400","4800","9600","19200","38400","57600","115200"},baudIndex(),i->{int[] a={1200,2400,4800,9600,19200,38400,57600,115200};baud=a[i];persistSettings();updateStatus();});
     content.addView(txt("Pair the scanner in Android Bluetooth settings first. The baud selection is a project setting and must match the transmitter configuration.",11,muted()));
+  }
+
+  private void showDeviceHistory(){
+    if(deviceHistoryStore==null)return;
+    deviceHistoryStore.loadRecentDevices(devices->{
+      if(devices.isEmpty()){toast("No Bluetooth device history yet");return;}
+      java.text.SimpleDateFormat format=new java.text.SimpleDateFormat("yyyy/MM/dd HH:mm",Locale.getDefault());
+      String[] labels=new String[devices.size()];
+      for(int i=0;i<devices.size();i++){
+        DeviceHistoryEntity item=devices.get(i);
+        String title=(item.alias==null||item.alias.trim().isEmpty())?item.name:item.alias;
+        if(title==null||title.trim().isEmpty())title="Bluetooth device";
+        String connected=item.lastConnectedAt>0?format.format(new Date(item.lastConnectedAt)):"Never connected";
+        labels[i]=title+" • "+item.address+"\n"+connected+" • "+item.baudRate+" baud • "+item.lastResult;
+      }
+      new AlertDialog.Builder(this)
+        .setTitle("DEVICE HISTORY")
+        .setItems(labels,(dialog,which)->{
+          DeviceHistoryEntity selected=devices.get(which);
+          lastDeviceAddress=selected.address;
+          getPreferences(0).edit().putString("lastDeviceAddress",lastDeviceAddress).apply();
+          connectAddress(selected.address);
+        })
+        .setNegativeButton(tr("Close"),null)
+        .show();
+    });
   }
   private void terminal(){
     content.addView(heading("DATA TERMINAL"));content.addView(txt("Raw incoming and outgoing Bluetooth SPP data • one value per line",12,muted()));
@@ -306,14 +413,31 @@ public class MainActivity extends Activity {
   private void accept(int v){
     if(v<0||v>5000){toast("Value must be 0–5000");return;}
     last=v;min=Math.min(min,v);max=Math.max(max,v);
-    if(matrixScanActive){int idx=activeScan.size();if(idx<scanRows*scanCols){activeScan.add(v);boolean endOfColumn=((idx+1)%scanRows)==0;signalAlert(endOfColumn?500:200);}}
+    if(matrixScanActive){
+      int idx=activeScan.size();
+      if(idx<scanRows*scanCols){
+        activeScan.add(v);
+        if(scanStorageWorker!=null)scanStorageWorker.addSample(v);
+        boolean endOfColumn=((idx+1)%scanRows)==0;
+        signalAlert(endOfColumn?500:200);
+      }else if(!scanCapacityWarningShown){
+        scanCapacityWarningShown=true;
+        logs.add(0,"MATRIX CAPACITY REACHED • additional values ignored");
+        toast("Grid is full. Increase rows/columns before the next scan.");
+      }
+    }
     if(!tab.equals("LIVE")){logs.add(0,String.format(Locale.US,"%tT   RX %d",new Date(),v));if(logs.size()>200)logs.remove(logs.size()-1);}
     if(tab.equals("PIN"))updatePinSignal(v);
     if((alertSound||alertVibe)&&!matrixScanActive&& !tab.equals("PIN"))signalAlert(45);
     if(tab.equals("LIVE")||tab.equals("MANUAL")||tab.equals("AUTOMATIC")||tab.equals("PIN"))requestRefresh();
   }
   private void acceptLine(String s){
-    if(s.trim().equalsIgnoreCase("a")){if(matrixScanActive){finishMatrixScan();}else{matrixScanActive=true;activeScan.clear();lastScan.clear();if(!tab.equals("LIVE"))logs.add(0,"MATRIX SCAN START");}if(tab.equals("MANUAL")||tab.equals("AUTOMATIC")||tab.equals("PIN"))show(tab);return;}
+    if(s.trim().equals("a")){
+      if(matrixScanActive)finishMatrixScan();
+      else startMatrixScan(tab.equals("MANUAL")?"MANUAL":"AUTOMATIC");
+      if(tab.equals("MANUAL")||tab.equals("AUTOMATIC")||tab.equals("PIN"))show(tab);
+      return;
+    }
     try{accept(Integer.parseInt(s.trim()));}catch(Exception e){if(!tab.equals("LIVE")){logs.add(0,"INVALID  "+s);if(logs.size()>200)logs.remove(logs.size()-1);}}
   }
   private void chooseDevice(){searchDevices();}
@@ -355,34 +479,105 @@ public class MainActivity extends Activity {
   }
   private void stopDiscoveryReceiverOnly(){if(discoveryReceiver!=null){try{unregisterReceiver(discoveryReceiver);}catch(Exception ignored){}discoveryReceiver=null;}}
   @SuppressWarnings("MissingPermission") private void stopDiscovery(){try{BluetoothAdapter a=BluetoothAdapter.getDefaultAdapter();if(a!=null&&a.isDiscovering())a.cancelDiscovery();}catch(Exception ignored){}stopDiscoveryReceiverOnly();}
+  @SuppressWarnings("MissingPermission")
+  private String safeDeviceName(BluetoothDevice dev){
+    try{
+      String name=dev.getName();
+      return name==null||name.trim().isEmpty()?"Bluetooth device":name;
+    }catch(Exception ignored){
+      return "Bluetooth device";
+    }
+  }
+
   private void connect(BluetoothDevice dev){
-    reconnectEnabled=true;lastDeviceAddress=dev.getAddress();getPreferences(0).edit().putString("lastDeviceAddress",lastDeviceAddress).apply();
-    disconnectSocketOnly();status.setText(tr("● CONNECTING…"));
+    if(matrixScanActive)abortMatrixScan();
+    final String address;
+    final String name;
+    try{
+      address=dev.getAddress();
+      name=safeDeviceName(dev);
+    }catch(Exception error){
+      toast("Could not read Bluetooth device information");
+      return;
+    }
+
+    reconnectEnabled=true;
+    lastDeviceAddress=address;
+    currentDeviceAddress=address;
+    currentDeviceName=name;
+    getPreferences(0).edit().putString("lastDeviceAddress",lastDeviceAddress).apply();
+    if(deviceHistoryStore!=null)deviceHistoryStore.record(name,address,baud,"CONNECTING",false);
+
+    disconnectSocketOnly();
+    status.setText(tr("● CONNECTING…"));
     final BluetoothSocket localSocket;
-    try{localSocket=dev.createRfcommSocketToServiceRecord(UUID.fromString("00001101-0000-1000-8000-00805F9B34FB"));socket=localSocket;}
-    catch(Exception e){status.setText(tr("● CONNECTION FAILED"));toast(e.getMessage()==null?"Connection failed":e.getMessage());scheduleReconnect();return;}
+    try{
+      localSocket=dev.createRfcommSocketToServiceRecord(UUID.fromString("00001101-0000-1000-8000-00805F9B34FB"));
+      socket=localSocket;
+    }catch(Exception error){
+      if(deviceHistoryStore!=null)deviceHistoryStore.record(name,address,baud,"FAILED",false);
+      status.setText(tr("● CONNECTION FAILED"));
+      toast(error.getMessage()==null?"Connection failed":error.getMessage());
+      scheduleReconnect();
+      return;
+    }
+
     reader=new Thread(()->{
+      boolean connected=false;
       try{
         localSocket.connect();
+        connected=true;
         if(socket!=localSocket){localSocket.close();return;}
+        if(deviceHistoryStore!=null)deviceHistoryStore.record(name,address,baud,"CONNECTED",true);
         InputStream in=localSocket.getInputStream();
-        handler.post(()->{if(socket==localSocket)status.setText(tr("● CONNECTED  •  ")+dev.getName()+"  •  "+baud+" "+tr("BAUD"));});
-        ByteArrayOutputStream line=new ByteArrayOutputStream();int b;
+        handler.post(()->{if(socket==localSocket)status.setText(tr("● CONNECTED  •  ")+name+"  •  "+baud+" "+tr("BAUD"));});
+        ByteArrayOutputStream line=new ByteArrayOutputStream();
+        int b;
         while(!Thread.currentThread().isInterrupted()&&(b=in.read())!=-1){
           if(b==10||b==13){
-            if(line.size()>0){String value=line.toString("UTF-8").trim();line.reset();handler.post(()->{if(socket==localSocket)acceptLine(value);});}
-          }else if(line.size()<128)line.write(b);
+            if(line.size()>0){
+              String value=line.toString("UTF-8").trim();
+              line.reset();
+              handler.post(()->{if(socket==localSocket)acceptLine(value);});
+            }
+          }else if(line.size()<128){
+            line.write(b);
+          }
         }
-      }catch(Exception e){
-        handler.post(()->{if(socket==localSocket){status.setText(tr("● CONNECTION LOST"));toast(e.getMessage()==null?"Connection failed":e.getMessage());scheduleReconnect();}});
+      }catch(Exception error){
+        if(deviceHistoryStore!=null)deviceHistoryStore.record(name,address,baud,"FAILED",false);
+        handler.post(()->{
+          if(socket==localSocket){
+            status.setText(tr("● CONNECTION LOST"));
+            toast(error.getMessage()==null?"Connection failed":error.getMessage());
+            scheduleReconnect();
+          }
+        });
       }finally{
         try{localSocket.close();}catch(Exception ignored){}
-        if(socket==localSocket){socket=null;handler.post(()->{if(status!=null)status.setText(tr("● CONNECTION CLOSED"));scheduleReconnect();});}
+        if(socket==localSocket){
+          socket=null;
+          if(connected&&deviceHistoryStore!=null)deviceHistoryStore.record(name,address,baud,"DISCONNECTED",false);
+          handler.post(()->{
+            if(matrixScanActive)abortMatrixScan();
+            if(status!=null)status.setText(tr("● CONNECTION CLOSED"));
+            scheduleReconnect();
+          });
+        }
       }
-    });reader.start();
+    },"SUMER-Bluetooth-SPP");
+    reader.start();
   }
   private void disconnectSocketOnly(){try{if(reader!=null)reader.interrupt();if(socket!=null)socket.close();}catch(Exception ignored){}socket=null;reader=null;}
-  private void disconnect(){reconnectEnabled=false;disconnectSocketOnly();updateStatus();}
+  private void disconnect(){
+    reconnectEnabled=false;
+    if(matrixScanActive)abortMatrixScan();
+    if(deviceHistoryStore!=null&&!currentDeviceAddress.isEmpty()){
+      deviceHistoryStore.record(currentDeviceName,currentDeviceAddress,baud,"USER_DISCONNECTED",false);
+    }
+    disconnectSocketOnly();
+    updateStatus();
+  }
   private void scheduleReconnect(){if(!autoReconnect||!reconnectEnabled||lastDeviceAddress.isEmpty())return;handler.postDelayed(()->{if(reconnectEnabled&&socket==null)connectAddress(lastDeviceAddress);},5000);}
   @SuppressWarnings("MissingPermission") private void connectAddress(String address){try{BluetoothDevice d=BluetoothAdapter.getDefaultAdapter().getRemoteDevice(address);connect(d);}catch(Exception e){scheduleReconnect();}}
   private void updateStatus(){if(status!=null)status.setText("●  "+tr("DEVICE DISCONNECTED")+"     •     "+baud+" "+tr("BAUD"));}
@@ -442,7 +637,48 @@ public class MainActivity extends Activity {
 
   private boolean refreshPending=false;
   private void requestRefresh(){if(refreshPending)return;refreshPending=true;handler.postDelayed(()->{refreshPending=false;if(tab.equals("LIVE")||tab.equals("MANUAL")||tab.equals("AUTOMATIC")||tab.equals("PIN"))show(tab);},32);}
-  private void finishMatrixScan(){matrixScanActive=false;autoRunning=false;lastScan.clear();lastScan.addAll(activeScan);activeScan.clear();if(!lastScan.isEmpty())saveScanToGallery();if(!tab.equals("LIVE"))logs.add(0,"MATRIX SCAN END • "+lastScan.size()+" values");}
+  private void startMatrixScan(String mode){
+    matrixScanActive=true;
+    activeScan.clear();
+    lastScan.clear();
+    scanCapacityWarningShown=false;
+    if(scanStorageWorker!=null){
+      scanStorageWorker.beginScan(
+        currentDeviceName,
+        currentDeviceAddress,
+        mode,
+        scanRows,
+        scanCols,
+        System.currentTimeMillis()
+      );
+    }
+    if(!tab.equals("LIVE"))logs.add(0,"MATRIX SCAN START • "+mode);
+  }
+
+  private void finishMatrixScan(){
+    if(!matrixScanActive)return;
+    matrixScanActive=false;
+    autoRunning=false;
+    lastScan.clear();
+    lastScan.addAll(activeScan);
+    activeScan.clear();
+    if(scanStorageWorker!=null)scanStorageWorker.finishScan(true);
+    if(!lastScan.isEmpty())saveScanToGallery();
+    if(!tab.equals("LIVE"))logs.add(0,"MATRIX SCAN END • "+lastScan.size()+" values");
+    scanCapacityWarningShown=false;
+  }
+
+  private void abortMatrixScan(){
+    if(!matrixScanActive)return;
+    matrixScanActive=false;
+    autoRunning=false;
+    lastScan.clear();
+    lastScan.addAll(activeScan);
+    activeScan.clear();
+    if(scanStorageWorker!=null)scanStorageWorker.finishScan(false);
+    if(!tab.equals("LIVE"))logs.add(0,"MATRIX SCAN INTERRUPTED • "+lastScan.size()+" values");
+    scanCapacityWarningShown=false;
+  }
   private int[] scanCell(int index){int col=index/scanRows,offset=index%scanRows;int row=(col%2==0)?scanRows-1-offset:offset;return new int[]{row,col};}
   private void galleryButton(){Button g=btn("OPEN SAVED SCAN GALLERY");g.setOnClickListener(v->{tap();show("GALLERY");});content.addView(g);}
   private File getProjectDirectory(){File base=getExternalFilesDir(Environment.DIRECTORY_PICTURES);File dir=base==null?new File(getFilesDir(),"scans"):new File(base,"SUMER");if(!dir.exists())dir.mkdirs();return dir;}
@@ -573,5 +809,11 @@ public class MainActivity extends Activity {
 
   }
   @Override public void onRequestPermissionsResult(int r,String[] p,int[] g){super.onRequestPermissionsResult(r,p,g);if(r==BT_REQ&&g.length>=2&&g[0]==PackageManager.PERMISSION_GRANTED&&g[1]==PackageManager.PERMISSION_GRANTED)searchDevices();}
-  @Override protected void onDestroy(){stopDiscovery();disconnect();super.onDestroy();}
+  @Override protected void onDestroy(){
+    stopDiscovery();
+    disconnect();
+    if(scanStorageWorker!=null)scanStorageWorker.shutdown();
+    if(deviceHistoryStore!=null)deviceHistoryStore.close();
+    super.onDestroy();
+  }
 }
