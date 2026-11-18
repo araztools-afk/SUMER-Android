@@ -16,7 +16,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Serializes scan persistence on one background thread.
- * Numeric readings remain one database row per incoming line.
+ * Each accepted numeric line is stored as one independently indexed row.
  */
 public final class ScanStorageWorker {
     public interface ErrorListener {
@@ -33,7 +33,7 @@ public final class ScanStorageWorker {
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final AtomicBoolean accepting = new AtomicBoolean(true);
 
-    // These fields are only accessed on executor's single worker thread.
+    // Accessed only on the executor's single worker thread.
     private final ArrayList<Integer> pending = new ArrayList<>(BATCH_SIZE);
     private long activeScanId = -1L;
     private int nextSampleIndex = 0;
@@ -46,6 +46,7 @@ public final class ScanStorageWorker {
         this.dao = database.scanDao();
         this.errorListener = errorListener;
 
+        // Runs before any subsequently queued scan command.
         executor.execute(() -> {
             try {
                 dao.markOpenScansIncomplete();
@@ -73,16 +74,16 @@ public final class ScanStorageWorker {
                 }
 
                 ScanEntity scan = new ScanEntity();
-                scan.deviceName = deviceName;
-                scan.deviceAddress = deviceAddress;
+                scan.deviceName = deviceName == null ? "Unknown device" : deviceName;
+                scan.deviceAddress = deviceAddress == null ? "" : deviceAddress;
                 scan.mode = "MANUAL".equals(mode) ? "MANUAL" : "AUTOMATIC";
                 scan.rows = rows;
                 scan.columns = columns;
                 scan.startedAt = startedAt;
-                scan.completedAt = null;
+                scan.completedAt = 0L;
                 scan.sampleCount = 0;
-                scan.minValue = null;
-                scan.maxValue = null;
+                scan.minValue = -1;
+                scan.maxValue = -1;
                 scan.isComplete = false;
 
                 activeScanId = dao.insertScan(scan);
@@ -140,7 +141,7 @@ public final class ScanStorageWorker {
         try {
             dao.finishScan(
                 activeScanId,
-                completed ? System.currentTimeMillis() : null,
+                completed ? System.currentTimeMillis() : 0L,
                 completed
             );
             activeScanId = -1L;
@@ -215,7 +216,7 @@ public final class ScanStorageWorker {
         try {
             errorListener.onError(message);
         } catch (Exception ignored) {
-            // Error reporting must never stop the storage worker.
+            // Reporting must never stop the storage worker.
         }
     }
 }
