@@ -9,6 +9,7 @@ import com.araztools.sumer.data.local.DeviceHistoryDao;
 import com.araztools.sumer.data.local.DeviceHistoryEntity;
 import com.araztools.sumer.data.local.SumerDatabase;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -42,6 +43,8 @@ public final class DeviceHistoryStore {
                 if (device == null) {
                     device = new DeviceHistoryEntity();
                     device.address = address;
+                    device.name = "";
+                    device.alias = "";
                     device.connectionCount = 0;
                     device.lastConnectedAt = 0L;
                 }
@@ -49,9 +52,10 @@ public final class DeviceHistoryStore {
                 if (name != null && !name.trim().isEmpty()) {
                     device.name = name;
                 }
+                if (device.alias == null) device.alias = "";
                 device.lastAttemptAt = now;
                 device.baudRate = baudRate;
-                device.lastResult = result;
+                device.lastResult = result == null ? "" : result;
 
                 if (connected) {
                     device.lastConnectedAt = now;
@@ -60,7 +64,7 @@ public final class DeviceHistoryStore {
 
                 dao.upsert(device);
             } catch (Exception ignored) {
-                // Device history must not interrupt the Bluetooth reader.
+                // Device history must not interrupt Bluetooth acquisition.
             }
         });
     }
@@ -71,7 +75,7 @@ public final class DeviceHistoryStore {
             try {
                 devices = dao.getRecentDevices();
             } catch (Exception ignored) {
-                devices = java.util.Collections.emptyList();
+                devices = Collections.emptyList();
             }
 
             final List<DeviceHistoryEntity> result = devices;
