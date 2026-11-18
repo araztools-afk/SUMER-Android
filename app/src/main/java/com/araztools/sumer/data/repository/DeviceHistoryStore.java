@@ -83,6 +83,16 @@ public final class DeviceHistoryStore {
         });
     }
 
+    public void updateAlias(String address, String alias) {
+        if (address == null || address.trim().isEmpty()) return;
+        executor.execute(() -> {
+            try {
+                dao.updateAlias(address, alias == null ? "" : alias.trim());
+            } catch (Exception ignored) {
+            }
+        });
+    }
+
     public void close() {
         executor.shutdown();
     }
