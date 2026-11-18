@@ -30,18 +30,22 @@ This release candidate consolidates the software requirements from the SUMER des
 ### MANUAL and AUTOMATIC
 - Configurable rows and columns; default grid is 4 × 3, valid range 1–50 per dimension, maximum 2,500 cells.
 - Accepted scan path starts at bottom-left and proceeds vertically, alternating direction column by column.
-- Matrix scan begins/ends on a standalone `a` line. Manual test-scan start/finish controls are also available.
-- Manual numeric test input (0–5000) uses the same processing path as received values.
-- Heatmap cells are equal-sized, bordered and labelled with block number and value.
-- A scan graph is shown after completion.
-- Matrix alerts use a 200 ms signal for ordinary samples and 500 ms for the last cell in each row.
-- Completed scans are saved as PNG and CSV in the app's SUMER gallery. PNG images can be exported to Pictures/SUMER.
+- A standalone lowercase `a` line starts or ends a matrix scan; uppercase `A` and embedded text do not act as markers.
+- Manual test-scan start/finish controls use the same scan persistence pipeline.
+- Each accepted numeric line (0–5000) is stored as an individual, ordered sample row in Room.
+- Room stores scan mode, device identity, grid dimensions, start/end time, count, minimum, maximum and completion state.
+- Samples are committed in batches of 25 inside database transactions. Interrupted scans are retained as INCOMPLETE.
+- The most recent 100 scans can be opened from SCAN DATA HISTORY; each record shows its metadata and first 40 values.
+- Completed scans are also saved as PNG and CSV in the app's SUMER gallery. PNG images can be exported to Pictures/SUMER.
+- Values beyond the configured grid capacity are explicitly rejected and reported; increase rows/columns before starting a larger scan.
 
 ### Bluetooth and terminal
 - Bluetooth Classic / SPP discovery of nearby devices plus paired-device selection (including HC-05).
 - Last selected device can be reconnected automatically when enabled; the device search dialog shows paired and newly discovered devices.
+- Device history is stored in Room: name, MAC address, nickname, last attempt, last successful connection, selected baud rate, last result and connection count.
+- Open DEVICE HISTORY to reconnect to a saved device; long-press an entry to edit its nickname.
 - The terminal shows received lines and can send a text command/value back over SPP.
-- Input protocol currently supported by the app: one integer per line, 0–5000; standalone `a` toggles matrix scan start/end.
+- Input protocol currently supported by the app: one integer per line, 0–5000; standalone lowercase `a` toggles matrix scan start/end.
 - Baud selection is a saved project setting only. It does not remotely change the HC-05 UART setting.
 
 ### Registration
@@ -55,5 +59,12 @@ This release candidate consolidates the software requirements from the SUMER des
 - Android minimum SDK 23; target SDK 28; Java 17; Gradle 8.9.
 - GitHub Actions validates APK build, package metadata, alignment and signature.
 
+## Sensor-channel boundary
+- The agreed hardware target remains four FLC100 channels plus one inductive channel.
+- This application branch currently accepts one integer per line and does not yet identify which FLC100 produced a value.
+- The inductive channel remains reserved until its analog front-end range and conditioning are confirmed.
+- Do not connect an unknown bipolar or over-voltage analog output directly to an ATmega128 ADC input.
+- A channel identifier or a confirmed fixed transmission order is required before independent channel displays can be implemented.
+
 ## Verification boundary
-A successful CI build confirms compilation, APK packaging, alignment and signing. It does not confirm real-world Bluetooth behaviour, hardware measurements, audio quality on every device, or sensor accuracy. Those require on-device testing with the actual scanner.
+A successful CI build confirms compilation, APK packaging, alignment and signing. It does not confirm real-world Bluetooth behaviour, hardware measurements, audio quality on every device, or sensor accuracy. Those require on-device testing with the actual scanner. Room commits every 25 samples; if Android is forcibly killed between commits, up to 24 newest samples may remain only in memory. A normal matrix end or detected Bluetooth disconnect flushes the pending batch and records completion/incompletion.
