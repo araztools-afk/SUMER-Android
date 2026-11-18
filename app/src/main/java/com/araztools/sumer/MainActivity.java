@@ -524,6 +524,11 @@ public class MainActivity extends Activity {
       return;
     }
 
+    String previousAddress=currentDeviceAddress;
+    String previousName=currentDeviceName;
+    if(!previousAddress.isEmpty()&&!previousAddress.equals(address)&&deviceHistoryStore!=null){
+      deviceHistoryStore.record(previousName,previousAddress,baud,"SWITCHED_DEVICE",false);
+    }
     reconnectEnabled=true;
     lastDeviceAddress=address;
     currentDeviceAddress=address;
