@@ -18,8 +18,8 @@ public interface ScanDao {
     @Query(
         "UPDATE scans SET " +
         "sampleCount = sampleCount + :addedCount, " +
-        "minValue = CASE WHEN minValue IS NULL OR minValue > :batchMin THEN :batchMin ELSE minValue END, " +
-        "maxValue = CASE WHEN maxValue IS NULL OR maxValue < :batchMax THEN :batchMax ELSE maxValue END " +
+        "minValue = CASE WHEN minValue < 0 OR minValue > :batchMin THEN :batchMin ELSE minValue END, " +
+        "maxValue = CASE WHEN maxValue < 0 OR maxValue < :batchMax THEN :batchMax ELSE maxValue END " +
         "WHERE id = :scanId"
     )
     void updateSummary(long scanId, int addedCount, int batchMin, int batchMax);
@@ -28,9 +28,9 @@ public interface ScanDao {
         "UPDATE scans SET completedAt = :completedAt, isComplete = :isComplete " +
         "WHERE id = :scanId"
     )
-    void finishScan(long scanId, Long completedAt, boolean isComplete);
+    void finishScan(long scanId, long completedAt, boolean isComplete);
 
-    @Query("UPDATE scans SET isComplete = 0 WHERE completedAt IS NULL")
+    @Query("UPDATE scans SET isComplete = 0 WHERE completedAt = 0")
     void markOpenScansIncomplete();
 
     @Query("SELECT * FROM scans ORDER BY startedAt DESC LIMIT 100")
