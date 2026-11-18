@@ -384,24 +384,47 @@ public class MainActivity extends Activity {
     deviceHistoryStore.loadRecentDevices(devices->{
       if(devices.isEmpty()){toast("No Bluetooth device history yet");return;}
       java.text.SimpleDateFormat format=new java.text.SimpleDateFormat("yyyy/MM/dd HH:mm",Locale.getDefault());
-      String[] labels=new String[devices.size()];
-      for(int i=0;i<devices.size();i++){
-        DeviceHistoryEntity item=devices.get(i);
+      ArrayList<String> labels=new ArrayList<>();
+      for(DeviceHistoryEntity item:devices){
         String title=(item.alias==null||item.alias.trim().isEmpty())?item.name:item.alias;
         if(title==null||title.trim().isEmpty())title="Bluetooth device";
         String connected=item.lastConnectedAt>0?format.format(new Date(item.lastConnectedAt)):"Never connected";
-        labels[i]=title+" • "+item.address+"\n"+connected+" • "+item.baudRate+" baud • "+item.lastResult;
+        labels.add(title+" • "+item.address+"\n"+connected+" • "+item.baudRate+" baud • "+item.lastResult);
       }
-      new AlertDialog.Builder(this)
-        .setTitle("DEVICE HISTORY")
-        .setItems(labels,(dialog,which)->{
-          DeviceHistoryEntity selected=devices.get(which);
-          lastDeviceAddress=selected.address;
-          getPreferences(0).edit().putString("lastDeviceAddress",lastDeviceAddress).apply();
-          connectAddress(selected.address);
-        })
+      ListView list=new ListView(this);
+      ArrayAdapter<String> adapter=new ArrayAdapter<>(this,android.R.layout.simple_list_item_1,labels);
+      list.setAdapter(adapter);
+      AlertDialog dialog=new AlertDialog.Builder(this)
+        .setTitle("DEVICE HISTORY • tap to connect, hold to rename")
+        .setView(list)
         .setNegativeButton(tr("Close"),null)
-        .show();
+        .create();
+      list.setOnItemClickListener((parent,view,position,id)->{
+        DeviceHistoryEntity selected=devices.get(position);
+        dialog.dismiss();
+        lastDeviceAddress=selected.address;
+        getPreferences(0).edit().putString("lastDeviceAddress",lastDeviceAddress).apply();
+        connectAddress(selected.address);
+      });
+      list.setOnItemLongClickListener((parent,view,position,id)->{
+        DeviceHistoryEntity selected=devices.get(position);
+        EditText aliasInput=new EditText(this);
+        aliasInput.setSingleLine(true);
+        aliasInput.setHint("Device nickname");
+        aliasInput.setText(selected.alias==null?"":selected.alias);
+        new AlertDialog.Builder(this)
+          .setTitle("DEVICE NICKNAME")
+          .setView(aliasInput)
+          .setPositiveButton("SAVE",(d,w)->{
+            deviceHistoryStore.updateAlias(selected.address,aliasInput.getText().toString());
+            toast("Device nickname saved");
+            showDeviceHistory();
+          })
+          .setNegativeButton(tr("Close"),null)
+          .show();
+        return true;
+      });
+      dialog.show();
     });
   }
   private void terminal(){
@@ -524,6 +547,7 @@ public class MainActivity extends Activity {
 
     reader=new Thread(()->{
       boolean connected=false;
+      boolean failed=false;
       try{
         localSocket.connect();
         connected=true;
@@ -545,19 +569,27 @@ public class MainActivity extends Activity {
           }
         }
       }catch(Exception error){
-        if(deviceHistoryStore!=null)deviceHistoryStore.record(name,address,baud,"FAILED",false);
+        failed=true;
+        if(deviceHistoryStore!=null){
+          deviceHistoryStore.record(
+            name,address,baud,
+            connected?"CONNECTION_LOST":"FAILED",
+            false
+          );
+        }
         handler.post(()->{
           if(socket==localSocket){
             status.setText(tr("● CONNECTION LOST"));
             toast(error.getMessage()==null?"Connection failed":error.getMessage());
-            scheduleReconnect();
           }
         });
       }finally{
         try{localSocket.close();}catch(Exception ignored){}
         if(socket==localSocket){
           socket=null;
-          if(connected&&deviceHistoryStore!=null)deviceHistoryStore.record(name,address,baud,"DISCONNECTED",false);
+          if(connected&&!failed&&deviceHistoryStore!=null){
+            deviceHistoryStore.record(name,address,baud,"DISCONNECTED",false);
+          }
           handler.post(()->{
             if(matrixScanActive)abortMatrixScan();
             if(status!=null)status.setText(tr("● CONNECTION CLOSED"));
