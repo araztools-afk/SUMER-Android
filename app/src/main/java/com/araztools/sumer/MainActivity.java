@@ -1,5 +1,6 @@
 package com.araztools.sumer;
 
+import com.araztools.sumer.bluetooth.SumerProtocol;
 import com.araztools.sumer.data.local.DeviceHistoryEntity;
 import com.araztools.sumer.data.local.ScanEntity;
 import com.araztools.sumer.data.local.ScanSampleEntity;
@@ -429,7 +430,7 @@ public class MainActivity extends Activity {
   }
   private void terminal(){
     content.addView(heading("DATA TERMINAL"));content.addView(txt("Raw incoming and outgoing Bluetooth SPP data • one value per line",12,muted()));
-    LinearLayout send=row();EditText command=new EditText(this);command.setSingleLine(true);command.setInputType( android.text.InputType.TYPE_CLASS_TEXT);command.setHint("Send command / value (e.g. a)");command.setTextColor(fg());command.setHintTextColor(muted());command.setBackground(shape(panel(),line()));pad(command,10);send.addView(command,new LinearLayout.LayoutParams(0,dp(52),1));Button sendBtn=btn("SEND");send.addView(sendBtn);sendBtn.setOnClickListener(v->{tap();String value=command.getText().toString().trim();if(value.isEmpty())return;sendLine(value);logs.add(0,"TX  "+value);command.setText("");show("TERMINAL");});content.addView(send);
+    LinearLayout send=row();EditText command=new EditText(this);command.setSingleLine(true);command.setInputType( android.text.InputType.TYPE_CLASS_TEXT);command.setHint("Send command / value (e.g. a)");command.setTextColor(fg());command.setHintTextColor(muted());command.setBackground(shape(panel(),line()));pad(command,10);send.addView(command,new LinearLayout.LayoutParams(0,dp(52),1));Button sendBtn=btn("SEND");send.addView(sendBtn);sendBtn.setOnClickListener(v->{tap();String value=command.getText().toString().trim();if(value.isEmpty())return;if(!sendLine(value))return;logs.add(0,"TX  "+value);command.setText("");show("TERMINAL");});content.addView(send);
     for(String s:logs){TextView t=txt(s,13,0xff20c997);t.setPadding(dp(10),dp(7),dp(10),dp(7));t.setBackground(shape(panel(),line()));card(t);}
     Button clear=btn("CLEAR LOG");clear.setOnClickListener(v->{tap();logs.clear();show("TERMINAL");});content.addView(clear);
   }
@@ -454,14 +455,46 @@ public class MainActivity extends Activity {
     if((alertSound||alertVibe)&&!matrixScanActive&& !tab.equals("PIN"))signalAlert(45);
     if(tab.equals("LIVE")||tab.equals("MANUAL")||tab.equals("AUTOMATIC")||tab.equals("PIN"))requestRefresh();
   }
-  private void acceptLine(String s){
-    if(s.trim().equals("a")){
-      if(matrixScanActive)finishMatrixScan();
-      else startMatrixScan(tab.equals("MANUAL")?"MANUAL":"AUTOMATIC");
-      if(tab.equals("MANUAL")||tab.equals("AUTOMATIC")||tab.equals("PIN"))show(tab);
-      return;
+  private void acceptLine(String raw){
+    SumerProtocol.Message message=SumerProtocol.parseLine(raw);
+    switch(message.type){
+      case MATRIX_MARKER:
+        if(matrixScanActive){
+          finishMatrixScan();
+        }else if(tab.equals("MANUAL")){
+          startMatrixScan("MANUAL");
+        }else if(tab.equals("AUTOMATIC")&&autoRunning){
+          startMatrixScan("AUTOMATIC");
+        }else{
+          addProtocolLog("IGNORED MATRIX MARKER OUTSIDE ACTIVE SCAN MODE");
+          return;
+        }
+        if(tab.equals("MANUAL")||tab.equals("AUTOMATIC"))show(tab);
+        return;
+      case NUMBER:
+        accept(message.number);
+        return;
+      case STATUS:
+        addProtocolLog("STATUS  "+message.text);
+        return;
+      case OUT_OF_RANGE:
+        addProtocolLog("OUT OF RANGE  "+message.text);
+        return;
+      case INVALID_NUMBER:
+        addProtocolLog("INVALID NUMBER  "+message.text);
+        return;
+      case UNKNOWN:
+        addProtocolLog("RX  "+message.text);
+        return;
+      case EMPTY:
+      default:
+        return;
     }
-    try{accept(Integer.parseInt(s.trim()));}catch(Exception e){if(!tab.equals("LIVE")){logs.add(0,"INVALID  "+s);if(logs.size()>200)logs.remove(logs.size()-1);}}
+  }
+  private void addProtocolLog(String entry){
+    logs.add(0,entry);
+    if(logs.size()>200)logs.remove(logs.size()-1);
+    if(tab.equals("TERMINAL"))requestRefresh();
   }
   private void chooseDevice(){searchDevices();}
   @SuppressWarnings("MissingPermission") private void searchDevices(){
@@ -560,18 +593,19 @@ public class MainActivity extends Activity {
         if(deviceHistoryStore!=null)deviceHistoryStore.record(name,address,baud,"CONNECTED",true);
         InputStream in=localSocket.getInputStream();
         handler.post(()->{if(socket==localSocket)status.setText(tr("● CONNECTED  •  ")+name+"  •  "+baud+" "+tr("BAUD"));});
-        ByteArrayOutputStream line=new ByteArrayOutputStream();
-        int b;
-        while(!Thread.currentThread().isInterrupted()&&(b=in.read())!=-1){
-          if(b==10||b==13){
-            if(line.size()>0){
-              String value=line.toString("UTF-8").trim();
-              line.reset();
-              handler.post(()->{if(socket==localSocket)acceptLine(value);});
-            }
-          }else if(line.size()<128){
-            line.write(b);
+        SumerProtocol.LineFramer framer=new SumerProtocol.LineFramer();
+        SumerProtocol.LineListener lineListener=new SumerProtocol.LineListener(){
+          @Override public void onLine(String value){
+            handler.post(()->{if(socket==localSocket)acceptLine(value);});
           }
+          @Override public void onLineTooLong(){
+            handler.post(()->{if(socket==localSocket)addProtocolLog("INVALID • RECEIVED LINE EXCEEDS 128 BYTES");});
+          }
+        };
+        byte[] chunk=new byte[256];
+        int count;
+        while(!Thread.currentThread().isInterrupted()&&(count=in.read(chunk))!=-1){
+          if(count>0)framer.accept(chunk,0,count,lineListener);
         }
       }catch(Exception error){
         failed=true;
@@ -695,7 +729,7 @@ public class MainActivity extends Activity {
   private void finishMatrixScan(){
     if(!matrixScanActive)return;
     matrixScanActive=false;
-    autoRunning=false;
+    // Automatic sessions remain armed between consecutive a...a scans.
     lastScan.clear();
     lastScan.addAll(activeScan);
     activeScan.clear();
@@ -776,7 +810,7 @@ public class MainActivity extends Activity {
   private void exportImage(File file){try{ContentValues values=new ContentValues();values.put(MediaStore.Images.Media.DISPLAY_NAME,file.getName());values.put(MediaStore.Images.Media.MIME_TYPE,"image/png");if(Build.VERSION.SDK_INT>=29)values.put(MediaStore.Images.Media.RELATIVE_PATH,Environment.DIRECTORY_PICTURES+"/SUMER");Uri uri=getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI,values);if(uri==null)throw new IOException("MediaStore unavailable");try(InputStream in=new FileInputStream(file);OutputStream out=getContentResolver().openOutputStream(uri)){byte[] buf=new byte[8192];int n;while((n=in.read(buf))>0)out.write(buf,0,n);}toast("Image exported to Pictures/SUMER");}catch(Exception e){toast(tr("Export failed: ")+e.getMessage());}}
   private ArrayList<String> pinRecords(){ArrayList<String> out=new ArrayList<>();String raw=getPreferences(0).getString("pinRecords","");if(!raw.isEmpty())out.addAll(Arrays.asList(raw.split("\\n")));return out;}
   private String joinLines(ArrayList<String> lines){StringBuilder b=new StringBuilder();for(String line:lines){if(b.length()>0)b.append((char)10);b.append(line.replace((char)10,' '));}return b.toString();}
-  private void sendLine(String value){try{if(socket==null||!socket.isConnected()){toast("Device is not connected");return;}OutputStream out=socket.getOutputStream();out.write((value+System.lineSeparator()).getBytes("UTF-8"));out.flush();}catch(Exception e){toast(tr("Send failed: ")+e.getMessage());}}
+  private boolean sendLine(String value){try{if(socket==null||!socket.isConnected()){toast("Device is not connected");return false;}byte[] frame=SumerProtocol.encodeLine(value);OutputStream out=socket.getOutputStream();out.write(frame);out.flush();return true;}catch(Exception e){toast(tr("Send failed: ")+e.getMessage());return false;}}
 
   private void toast(String s){Toast.makeText(this,tr(s),Toast.LENGTH_SHORT).show();}
   private String tr(String s){int i=language.equals("fa")?1:language.equals("ar")?2:language.equals("ru")?3:language.equals("tr")?4:language.equals("de")?5:0;String[] exact=TRANSLATIONS.get(s);if(exact!=null)return exact[i];String out=s;ArrayList<String> keys=new ArrayList<>(TRANSLATIONS.keySet());Collections.sort(keys,(x,y)->Integer.compare(y.length(),x.length()));for(String key:keys)if(key.length()>=4)out=out.replace(key,TRANSLATIONS.get(key)[i]);return out;}
