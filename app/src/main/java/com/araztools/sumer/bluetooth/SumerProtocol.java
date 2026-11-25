@@ -114,11 +114,11 @@ public final class SumerProtocol {
 
         String line = value.trim();
         if (line.isEmpty()) throw new IllegalArgumentException("Line is empty");
-        if (line.length() > MAX_LINE_BYTES) {
-            throw new IllegalArgumentException("Line exceeds " + MAX_LINE_BYTES + " characters");
+        byte[] frame = (line + "\n").getBytes(StandardCharsets.UTF_8);
+        if (frame.length - 1 > MAX_LINE_BYTES) {
+            throw new IllegalArgumentException("Line exceeds " + MAX_LINE_BYTES + " bytes");
         }
-
-        return (line + "\n").getBytes(StandardCharsets.UTF_8);
+        return frame;
     }
 
     public static final class LineFramer {
