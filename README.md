@@ -44,8 +44,13 @@ This release candidate consolidates the software requirements from the SUMER des
 - Last selected device can be reconnected automatically when enabled; the device search dialog shows paired and newly discovered devices.
 - Device history is stored in Room: name, MAC address, nickname, last attempt, last successful connection, selected baud rate, last result and connection count.
 - Open DEVICE HISTORY to reconnect to a saved device; long-press an entry to edit its nickname.
-- The terminal shows received lines and can send a text command/value back over SPP.
-- Input protocol currently supported by the app: one integer per line, 0–5000; standalone lowercase `a` toggles matrix scan start/end.
+- The terminal shows received lines and can send one text command/value line back over SPP; embedded CR/LF is rejected to prevent accidental multi-command injection.
+- The SPP reader treats Bluetooth as a byte stream: fragmented reads are reassembled, multiple lines in one read are split, and LF, CRLF or CR line endings are accepted.
+- Incoming lines are limited to 128 bytes. An overlong line is discarded through its next line delimiter and reported; parsing then resumes with the next line.
+- Input protocol: one unsigned decimal integer per line, 0–5000; standalone lowercase `a` is the only matrix marker. Uppercase `A`, signed numbers and embedded marker text are not accepted as valid samples/markers.
+- Known status lines (`READY`, `SCANNING`, `STOPPED`, `SENSOR_ERROR`, `LOW_BATTERY`) and unknown text are logged separately and never enter the numeric matrix.
+- The Automatic session remains armed between successive `a` start/end pairs until the user stops it. Markers received in Live or unrelated tabs are ignored.
+- The on-screen Manual test controls are local simulation only. Automatic hardware commands such as `!START` / `!STOP` remain provisional examples and are not sent automatically until the ATmega128 firmware command contract is finalized.
 - Baud selection is a saved project setting only. It does not remotely change the HC-05 UART setting.
 
 ### Registration
@@ -57,7 +62,7 @@ This release candidate consolidates the software requirements from the SUMER des
 - Application ID remains `com.araztools.sumer.livepreview` so SUMER2 updates the installed SUMER preview rather than creating a different package.
 - Stable debug signing key is retained for in-place updates.
 - Android minimum SDK 23; target SDK 28; Java 17; Gradle 8.9.
-- GitHub Actions validates APK build, package metadata, alignment and signature.
+- Android unit tests include the SPP line-framing and message-parser contract. A passing unit test does not replace an Android APK build or physical HC-05 test.
 
 ## Sensor-channel boundary
 - The agreed hardware target remains four FLC100 channels plus one inductive channel.
